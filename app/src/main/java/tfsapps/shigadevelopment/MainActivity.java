@@ -130,6 +130,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     // [プランB] 探索率
     private int totalShigaMeshCount = 0;
 
+    // ── 宝箱ブーストシステム ─────────────────────────────────────────
+    /** 現在のブースト半径 (m)。0 = ブーストなし */
+    private float boostRadius          = 0f;
+    /** ブースト残り有効マス数 */
+    private int   boostRemainingMeshes = 0;
+    /** 宝箱ポップアップを表示中か */
+    private boolean isTreasureVisible  = false;
+    /** 宝箱ポップアップに表示する報酬半径 */
+    private int pendingBoostRadius     = 0;
+
     // --- UI ---
     private TextView tvCurrentCity;
     private TextView tvStars;
@@ -142,6 +152,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private TextView tvConquestSub;
     private View confettiView;
     private TextView tvExplorationRate;    // 地図上の探索率テキスト
+    private TextView tvBoostStatus;        // ブーストステータスバナー
     // スポット到達お祝いポップアップ構成ビュー
     private android.widget.LinearLayout layoutSpotCelebration;
     private View     celebFlashView;
@@ -149,6 +160,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private TextView tvCelebMessage;
     private TextView tvCelebStars;
     private TextView tvCelebProgress;
+    // 宝箱ポップアップ構成ビュー
+    private android.widget.LinearLayout layoutTreasureChest;
+    private View     treasureDimOverlay;
+    private TextView tvChestPrize;
+    private TextView tvChestEffectDesc;
+    private Button   btnChestOpen;
+    private Button   btnChestSkip;
 
     private boolean isHeroMode = false;
 
@@ -187,12 +205,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         tvConquestSub         = findViewById(R.id.tvConquestSub);
         confettiView          = findViewById(R.id.confettiView);
         tvExplorationRate      = findViewById(R.id.tvExplorationRate);
+        tvBoostStatus          = findViewById(R.id.tvBoostStatus);
         layoutSpotCelebration  = findViewById(R.id.layoutSpotCelebration);
         celebFlashView         = findViewById(R.id.celebFlashView);
         tvCelebSpotName        = findViewById(R.id.tvCelebSpotName);
         tvCelebMessage         = findViewById(R.id.tvCelebMessage);
         tvCelebStars           = findViewById(R.id.tvCelebStars);
         tvCelebProgress        = findViewById(R.id.tvCelebProgress);
+        // 宝箱UI
+        layoutTreasureChest    = findViewById(R.id.layoutTreasureChest);
+        treasureDimOverlay     = findViewById(R.id.treasureDimOverlay);
+        tvChestPrize           = findViewById(R.id.tvChestPrize);
+        tvChestEffectDesc      = findViewById(R.id.tvChestEffectDesc);
+        btnChestOpen           = findViewById(R.id.btnChestOpen);
+        btnChestSkip           = findViewById(R.id.btnChestSkip);
 
         // >>>test_make>>>
         // 探索率エリアを10回連続タップ → 全データリセット（開発者デバッグ用）
@@ -369,28 +395,44 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         long meshId = MeshCalculator.calcMeshId(myLat, myLon);
 
         // 滋賀県内のメッシュのみ記録する（県外の移動はカウントしない）
-        // mesh_city_lookup に存在するメッシュ = 滋賀県内
         if (!db.isMeshLookupEmpty() && db.isMeshInShiga(meshId)) {
             boolean newMesh = db.addVisitedMesh(meshId);
             if (newMesh) {
                 visitedMeshes.add(meshId);
+
+                // ── ブースト中は半径内の周辺メッシュも一括記録 ───────────────
+                if (boostRadius > 0f) {
+                    recordNearbyMeshes(myLat, myLon, boostRadius);
+                }
+
                 fogProvider.updateSelfWalkedMeshes(visitedMeshes);
                 fogOverlay.clearTileCache();
                 updateExplorationRateUI();
+
+                // ── ブーストのカウントダウン ─────────────────────────
+                if (boostRemainingMeshes > 0) {
+                    boostRemainingMeshes--;
+                    if (boostRemainingMeshes <= 0) {
+                        boostRadius = 0f;
+                        runOnUiThread(() -> {
+                            updateBoostStatusUI();
+                            updateMyRadiusCircle(myLat, myLon);
+                        });
+                    } else {
+                        runOnUiThread(this::updateBoostStatusUI);
+                    }
+                }
 
                 // >>>test_make_takara>>>
                 // ---- 宝箱発生確率 ----
                 // ★本番リリース前にテスト行を削除し、本番行のコメントを外すこと★
                 // float takaraChance = 0.01f + (float)(Math.random() * 0.04f); // 本番: 1%〜5%
-                float takaraChance = 0.30f + (float)(Math.random() * 0.20f);   // テスト: 30%〜50%
+                float takaraChance = 0.10f + (float)(Math.random() * 0.20f);   // テスト: 30%〜50%
                 // <<<test_make_takara<<<
-                if (Math.random() < takaraChance) {
-                    // 報酬半径をランダムに決定（400 / 500 / 600m）
+                if (Math.random() < takaraChance && !isTreasureVisible) {
                     int[] radii = {400, 500, 600};
-                    int reward = radii[(int)(Math.random() * radii.length)];
-                    runOnUiThread(() -> Toast.makeText(this,
-                            "🎁 宝箱発見！探索半径 " + reward + "m ブースト！",
-                            Toast.LENGTH_LONG).show());
+                    pendingBoostRadius = radii[(int)(Math.random() * radii.length)];
+                    runOnUiThread(() -> showTreasureChest(pendingBoostRadius));
                 }
             }
         }
@@ -403,14 +445,61 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     // =========================================================================
+    // ブースト時：現在地周辺のメッシュを一括記録
+    // 5次メッシュ ≈ 250m四方 → ブースト半径をメッシュ単位に換算してスキャン
+    // =========================================================================
+    private void recordNearbyMeshes(double lat, double lon, float radiusM) {
+        // 1メッシュあたりの緯度・経度幅（概算）
+        // 5次メッシュ ≈ 250m  →  緯度幅 ≈ 0.00208度 / 経度幅 ≈ 0.003125度
+        final double meshLatStep = 2.0 / 3.0 / 8.0 / 10.0 / 2.0 / 2.0; // LAT_5TH
+        final double meshLonStep = 1.0       / 8.0 / 10.0 / 2.0 / 2.0; // LON_5TH
+
+        // 半径から走査するメッシュ数を算出（1m ≈ 1/111000度）
+        double latStep  = meshLatStep;
+        double lonStep  = meshLonStep;
+        int scanLat = (int)(radiusM / 111000.0 / latStep) + 2;
+        int scanLon = (int)(radiusM / (111000.0 * Math.cos(Math.toRadians(lat))) / lonStep) + 2;
+
+        boolean updated = false;
+        for (int dy = -scanLat; dy <= scanLat; dy++) {
+            for (int dx = -scanLon; dx <= scanLon; dx++) {
+                double cLat = lat + dy * latStep;
+                double cLon = lon + dx * lonStep;
+                // 中心からの距離チェック
+                float[] dist = new float[1];
+                android.location.Location.distanceBetween(lat, lon, cLat, cLon, dist);
+                if (dist[0] > radiusM) continue;
+
+                long nearMeshId = MeshCalculator.calcMeshId(cLat, cLon);
+                if (!db.isMeshInShiga(nearMeshId)) continue;
+                if (visitedMeshes.contains(nearMeshId)) continue;
+
+                boolean added = db.addVisitedMesh(nearMeshId);
+                if (added) {
+                    visitedMeshes.add(nearMeshId);
+                    updated = true;
+                }
+            }
+        }
+        if (updated) {
+            fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+            fogOverlay.clearTileCache();
+            runOnUiThread(this::updateExplorationRateUI);
+        }
+    }
+
+    // =========================================================================
     // スポット チェックイン判定
     // =========================================================================
     private void checkSpotCheckins() {
+        // 有効チェックイン半径（ブースト中はブースト半径、通常は300m）
+        float activeRadius = (boostRadius > 0f) ? boostRadius : SpotInfo.CHECKIN_RADIUS_M;
+
         for (CityInfo city : gameData.cities) {
             if (city.isCompleted) continue;
             for (SpotInfo spot : city.spots) {
                 if (spot.isVisited) continue;
-                if (!spot.isInRange(myLat, myLon)) continue;
+                if (!spot.isInRange(myLat, myLon, activeRadius)) continue;
 
                 spot.isVisited = true;
                 db.addVisitedSpot(spot.id);
@@ -709,6 +798,122 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     // =========================================================================
+    // 宝箱システム
+    // =========================================================================
+
+    /**
+     * 宝箱ポップアップを表示する（派手なバウンス登場 + 暗転オーバーレイ）
+     * @param radius ブースト半径 (400 / 500 / 600m)
+     */
+    private void showTreasureChest(int radius) {
+        if (layoutTreasureChest == null) return;
+        isTreasureVisible = true;
+
+        // 報酬テキストをセット
+        tvChestPrize.setText("🚀 探索半径 " + radius + "m ブースト！");
+        // 効果説明テキスト（半径は動的に変える）
+        if (tvChestEffectDesc != null) {
+            tvChestEffectDesc.setText(
+                "・チェックイン範囲が通常 300m → " + radius + "m に拡大\n"
+                + "・新しいマスを 30マス 踏むまで有効\n"
+                + "・スポットに近づきやすくなります！");
+        }
+
+        // 暗転オーバーレイを表示
+        if (treasureDimOverlay != null) {
+            treasureDimOverlay.setAlpha(0f);
+            treasureDimOverlay.setVisibility(View.VISIBLE);
+            treasureDimOverlay.animate().alpha(1f).setDuration(300).start();
+        }
+
+        // ポップアップ表示（初期状態）
+        layoutTreasureChest.setVisibility(View.VISIBLE);
+        layoutTreasureChest.setAlpha(0f);
+        layoutTreasureChest.setScaleX(0.2f);
+        layoutTreasureChest.setScaleY(0.2f);
+
+        // バウンス登場アニメーション（0.2 → 1.15 → 0.95 → 1.05 → 1.0）
+        android.animation.Keyframe kf0 = android.animation.Keyframe.ofFloat(0f,    0.2f);
+        android.animation.Keyframe kf1 = android.animation.Keyframe.ofFloat(0.55f, 1.15f);
+        android.animation.Keyframe kf2 = android.animation.Keyframe.ofFloat(0.75f, 0.95f);
+        android.animation.Keyframe kf3 = android.animation.Keyframe.ofFloat(0.88f, 1.05f);
+        android.animation.Keyframe kf4 = android.animation.Keyframe.ofFloat(1.0f,  1.00f);
+        android.animation.PropertyValuesHolder pvhX =
+            android.animation.PropertyValuesHolder.ofKeyframe("scaleX", kf0, kf1, kf2, kf3, kf4);
+        android.animation.PropertyValuesHolder pvhY =
+            android.animation.PropertyValuesHolder.ofKeyframe("scaleY", kf0, kf1, kf2, kf3, kf4);
+
+        ObjectAnimator bounceAnim = ObjectAnimator.ofPropertyValuesHolder(
+                layoutTreasureChest, pvhX, pvhY);
+        bounceAnim.setDuration(550);
+
+        ObjectAnimator fadeIn = ObjectAnimator.ofFloat(layoutTreasureChest, "alpha", 0f, 1f);
+        fadeIn.setDuration(200);
+
+        AnimatorSet appear = new AnimatorSet();
+        appear.playTogether(bounceAnim, fadeIn);
+        appear.setStartDelay(80);
+        appear.start();
+
+        // 「開ける！」ボタン
+        btnChestOpen.setOnClickListener(v -> {
+            applyBoost(radius);
+            hideTreasureChest();
+        });
+        // 「見送る」ボタン
+        btnChestSkip.setOnClickListener(v -> hideTreasureChest());
+    }
+
+    /** 宝箱ポップアップを閉じる */
+    private void hideTreasureChest() {
+        if (layoutTreasureChest == null) return;
+
+        // 暗転オーバーレイをフェードアウト
+        if (treasureDimOverlay != null) {
+            treasureDimOverlay.animate()
+                    .alpha(0f).setDuration(250)
+                    .withEndAction(() -> treasureDimOverlay.setVisibility(View.GONE))
+                    .start();
+        }
+
+        // ポップアップをシュリンク退場
+        layoutTreasureChest.animate()
+                .alpha(0f).scaleX(0.7f).scaleY(0.7f).setDuration(250)
+                .withEndAction(() -> {
+                    layoutTreasureChest.setVisibility(View.GONE);
+                    layoutTreasureChest.setScaleX(1f);
+                    layoutTreasureChest.setScaleY(1f);
+                    isTreasureVisible = false;
+                }).start();
+    }
+
+    /**
+     * ブーストを適用する（30マス有効）
+     * @param radius ブースト半径 (m)
+     */
+    private void applyBoost(int radius) {
+        boostRadius          = (float) radius;
+        boostRemainingMeshes = 30;   // 30マスで切れる
+        updateBoostStatusUI();
+        updateMyRadiusCircle(myLat, myLon);
+        Toast.makeText(this,
+                "🚀 探索半径が " + radius + "m に拡大！（30マス有効）",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    /** ブーストステータスバナーを更新する */
+    private void updateBoostStatusUI() {
+        if (tvBoostStatus == null) return;
+        if (boostRemainingMeshes > 0 && boostRadius > 0f) {
+            tvBoostStatus.setText(
+                    "🚀 " + (int)boostRadius + "m ブースト中（残" + boostRemainingMeshes + "マス）");
+            tvBoostStatus.setVisibility(View.VISIBLE);
+        } else {
+            tvBoostStatus.setVisibility(View.GONE);
+        }
+    }
+
+    // =========================================================================
     // 英雄テーマ
     // =========================================================================
     private void applyHeroTheme() {
@@ -718,11 +923,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     // =========================================================================
-    // 現在地 125m 緑円 + 300m チェックインリング
+    // 現在地 125m 緑円 + チェックインリング（ブースト対応）
     // =========================================================================
     private void updateMyRadiusCircle(double lat, double lon) {
         if (mMap == null) return;
         LatLng pos = new LatLng(lat, lon);
+        double activeRadius = (boostRadius > 0f) ? boostRadius : 300.0;
+
         if (myRadiusCircle == null) {
             myRadiusCircle = mMap.addCircle(new CircleOptions()
                     .center(pos).radius(125)
@@ -734,12 +941,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         if (checkinRadiusCircle == null) {
             checkinRadiusCircle = mMap.addCircle(new CircleOptions()
-                    .center(pos).radius(300)
+                    .center(pos).radius(activeRadius)
                     .strokeWidth(2f)
-                    .strokeColor(Color.argb(140, 100, 200, 255))
-                    .fillColor(Color.argb(8, 100, 200, 255))
+                    .strokeColor(boostRadius > 0f
+                            ? Color.argb(200, 255, 220, 0)   // ブースト中：ゴールド
+                            : Color.argb(140, 100, 200, 255)) // 通常：水色
+                    .fillColor(boostRadius > 0f
+                            ? Color.argb(15, 255, 220, 0)
+                            : Color.argb(8, 100, 200, 255))
                     .zIndex(199));
-        } else { checkinRadiusCircle.setCenter(pos); }
+        } else {
+            checkinRadiusCircle.setCenter(pos);
+            checkinRadiusCircle.setRadius(activeRadius);
+            checkinRadiusCircle.setStrokeColor(boostRadius > 0f
+                    ? Color.argb(200, 255, 220, 0)
+                    : Color.argb(140, 100, 200, 255));
+            checkinRadiusCircle.setFillColor(boostRadius > 0f
+                    ? Color.argb(15, 255, 220, 0)
+                    : Color.argb(8, 100, 200, 255));
+        }
     }
 
     // =========================================================================
@@ -1073,6 +1293,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     private void startLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) return;

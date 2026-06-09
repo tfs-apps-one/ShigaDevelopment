@@ -430,27 +430,60 @@
     </LinearLayout>
 
     <!-- ===================================================================
-         宝箱ポップアップ（FrameLayout内で中央に重ねて表示）
+         宝箱ポップアップ（暗転背景 + 中央ポップアップ）
          =================================================================== -->
+
+    <!-- 暗転オーバーレイ（宝箱表示中に背景を暗くする） -->
+    <View
+        android:id="@+id/treasureDimOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#BB000000"
+        android:elevation="22dp"
+        android:visibility="gone" />
+
+    <!-- 宝箱ポップアップ本体（スクロール対応） -->
     <LinearLayout
         android:id="@+id/layoutTreasureChest"
-        android:layout_width="290dp"
+        android:layout_width="310dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:layout_marginVertical="40dp"
         android:orientation="vertical"
         android:background="@drawable/treasure_chest_popup_bg"
-        android:padding="24dp"
         android:gravity="center"
-        android:elevation="25dp"
+        android:elevation="26dp"
         android:visibility="gone">
 
-        <!-- 宝箱絵文字 -->
+        <!-- スクロール可能コンテンツエリア -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="28dp"
+            android:paddingTop="28dp"
+            android:paddingBottom="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+        <!-- キラキラ装飾 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✨ ✨ ✨"
+            android:textSize="22sp"
+            android:paddingBottom="4dp" />
+
+        <!-- 宝箱絵文字（小劇みにしてスペース節約） -->
         <TextView
             android:id="@+id/tvChestEmoji"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📦"
-            android:textSize="56sp"
+            android:text="🎁"
+            android:textSize="58sp"
             android:paddingBottom="4dp" />
 
         <!-- タイトル -->
@@ -458,41 +491,86 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="宝　箱　発　見！"
-            android:textSize="18sp"
+            android:textSize="22sp"
             android:textStyle="bold"
             android:textColor="@color/treasure_title"
             android:gravity="center"
-            android:paddingBottom="8dp" />
+            android:paddingBottom="14dp" />
 
-        <!-- 報酬内容（半径・マス数） -->
+        <!-- 仕切り線 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#44FFD700"
+            android:layout_marginBottom="14dp" />
+
+        <!-- 報酬内容（半径・1行固定） -->
         <TextView
             android:id="@+id/tvChestPrize"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="探索半径 500m\n× 50マス 有効！"
-            android:textSize="20sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="🚀 探索半径 500m ブースト！"
+            android:textSize="19sp"
             android:textStyle="bold"
             android:textColor="@color/treasure_prize"
             android:gravity="center"
-            android:paddingBottom="16dp" />
+            android:paddingBottom="14dp" />
 
-        <!-- ボタン行 -->
+        <!-- 効果説明ボックス -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#33FFD700"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📌 効果の説明"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#FFD700"
+                android:paddingBottom="6dp" />
+
+            <TextView
+                android:id="@+id/tvChestEffectDesc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="・チェックイン範囲が通常 300m → 500m に拡大&#10;・新しいマスを 30マス 踏むまで有効&#10;・スポットに近づきやすくなります！"
+                android:textSize="13sp"
+                android:textColor="#FFEECC"
+                android:lineSpacingMultiplier="1.5" />
+
+        </LinearLayout>
+
+        </LinearLayout>
+        </ScrollView>
+
+        <!-- ボタン行（ScrollView外・常に表示） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingHorizontal="28dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="20dp">
 
-            <!-- 使うボタン -->
+            <!-- 開けるボタン -->
             <Button
                 android:id="@+id/btnChestOpen"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:layout_weight="1"
-                android:layout_marginEnd="6dp"
-                android:text="開ける！"
-                android:textSize="14sp"
-                android:textColor="@color/black"
+                android:layout_marginEnd="8dp"
+                android:text="🎉 開ける！"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#1A1A1A"
                 android:backgroundTint="@color/treasure_prize"
                 style="@style/Widget.AppCompat.Button" />
 
@@ -500,12 +578,12 @@
             <Button
                 android:id="@+id/btnChestSkip"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:layout_weight="1"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="8dp"
                 android:text="見送る"
                 android:textSize="14sp"
-                android:textColor="@color/text_secondary"
+                android:textColor="#AAAAAA"
                 style="@style/Widget.AppCompat.Button.Borderless" />
 
         </LinearLayout>
@@ -513,3 +591,4 @@
     </LinearLayout>
 
 </FrameLayout>
+
