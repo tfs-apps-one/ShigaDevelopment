@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">滋賀開拓ラリー</string>
+    <string name="app_title_hero">★ 滋賀開拓ラリー ～英雄版～ ★</string>
+    <string name="location_required">位置情報の許可が必要です。設定から許可してください。</string>
+    <string name="checkin_format">📍 %1$s にチェックイン！</string>
+    <string name="sort_distance">距離順</string>
+    <string name="sort_progress">達成率順</string>
+    <string name="debug_reset_title">デバッグ: データリセット</string>
+    <string name="debug_reset_msg">全ての訪問履歴を削除します。よろしいですか？</string>
+</resources>

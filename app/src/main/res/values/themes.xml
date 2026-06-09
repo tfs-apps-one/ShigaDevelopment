@@ -1,0 +1,10 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ベーステーマ（ダークテーマベース） -->
+    <style name="Base.Theme.ShigaDevelopment" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#64B5F6</item>
+        <item name="colorPrimaryDark">#1565C0</item>
+        <item name="android:windowBackground">@color/bg_normal</item>
+    </style>
+
+    <style name="Theme.ShigaDevelopment" parent="Base.Theme.ShigaDevelopment" />
+</resources>

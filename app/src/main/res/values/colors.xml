@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- 通常テーマ -->
+    <color name="bg_normal">#1A1A2E</color>           <!-- 深い紺（夜の滋賀イメージ） -->
+    <color name="dashboard_bg">#16213E</color>         <!-- ダッシュボード背景 -->
+    <color name="card_bg">#0F3460</color>             <!-- 市町カード背景 -->
+    <color name="text_primary">#E0E0E0</color>        <!-- メインテキスト -->
+    <color name="text_secondary">#9E9E9E</color>      <!-- サブテキスト -->
+    <color name="text_accent">#64B5F6</color>         <!-- アクセントテキスト（水色） -->
+    <color name="star_color">#FFD700</color>          <!-- 星マーク（ゴールド） -->
+    <color name="progress_color">#42A5F5</color>      <!-- 進捗バー（青） -->
+
+    <!-- 制覇演出 -->
+    <color name="confetti_overlay">#88FFD700</color>  <!-- 紙吹雪オーバーレイ（金半透明） -->
+    <color name="conquest_title">#FFD700</color>      <!-- 制覇タイトル（ゴールド） -->
+    <color name="conquest_sub">#FFF9C4</color>        <!-- 制覇サブテキスト -->
+
+    <!-- コンプリート済み市町カード -->
+    <color name="gold_light">#4D3D00</color>          <!-- ゴールドカード背景 -->
+
+    <!-- 英雄テーマ（全市町制覇後） -->
+    <color name="hero_bg">#2D1B00</color>             <!-- 英雄背景（深い琥珀色） -->
+    <color name="hero_accent">#FFD700</color>         <!-- 英雄アクセント -->
+
+    <!-- Google Maps カスタム（将来拡張用） -->
+    <color name="fog_color">#B3000000</color>         <!-- 霧色（黒70%） -->
+
+    <!-- 宝箱システム -->
+    <color name="treasure_title">#CD853F</color>      <!-- 宝箱タイトル（ブロンズ） -->
+    <color name="treasure_prize">#FFD700</color>       <!-- 当たり内容（ゴールド） -->
+    <color name="boost_banner_bg">#CC1A3A00</color>   <!-- ブーストバナー背景（深緑） -->
+    <color name="boost_banner_text">#80FF80</color>   <!-- ブーストバナーテキスト（明緑） -->
+
+    <!-- 自身の軌跡（霧の3状態） -->
+    <color name="footprint_green">#7850C864</color>   <!-- 自分の足跡（薄い緑半透明） -->
+</resources>

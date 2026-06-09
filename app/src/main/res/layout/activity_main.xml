@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  滋賀開拓ラリー メインレイアウト
+  ┌─────────────────────┐ ← FrameLayout (root, match_parent)
+  │  ┌───────────────┐   │
+  │  │  MapContainer  │   │ ← 画面縦60%（固定）
+  │  │ [地図+ズームBtn]│   │
+  │  └───────────────┘   │
+  │  ┌───────────────┐   │
+  │  │ NestedScrollView│  │ ← 残り40%（スクロール独立）
+  │  │ ┌─────────────┐│  │
+  │  │ │ ダッシュボード││  │
+  │  │ ├─────────────┤│  │
+  │  │ │  開拓日誌    ││  │
+  │  │ └─────────────┘│  │
+  │  └───────────────┘   │
+  │ [制覇オーバーレイ]    │ ← FrameLayout のため重ねて表示可
+  └─────────────────────┘
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_normal"
+    tools:context=".MainActivity">
+
+    <!-- ===================================================================
+         メインコンテンツ（地図 + 下部スクロールエリア を上下分離）
+         =================================================================== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- ===============================================================
+             【上部 固定】 Google Map（画面縦60%）+ ズームボタンオーバーレイ
+             =============================================================== -->
+        <FrameLayout
+            android:id="@+id/mapContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="6">
+
+            <!-- 地図本体 -->
+            <fragment
+                android:id="@+id/mapFragment"
+                android:name="com.google.android.gms.maps.SupportMapFragment"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <!-- 探索率オーバーレイ（地図左上） -->
+            <TextView
+                android:id="@+id/tvExplorationRate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_margin="10dp"
+                android:padding="6dp"
+                android:text="探索済 --.--%"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:background="#CC0F3460"
+                android:elevation="4dp" />
+
+            <!-- ブーストステータスバナー（地図左上・探索率の下） -->
+            <TextView
+                android:id="@+id/tvBoostStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_marginStart="10dp"
+                android:layout_marginTop="50dp"
+                android:padding="5dp"
+                android:textSize="12sp"
+                android:textColor="@color/boost_banner_text"
+                android:textStyle="bold"
+                android:background="@color/boost_banner_bg"
+                android:elevation="4dp"
+                android:visibility="gone" />
+
+            <!-- ① フラッシュオーバーレイ（チェックイン瞬間の金色光） -->
+            <View
+                android:id="@+id/celebFlashView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#99FFD700"
+                android:alpha="0"
+                android:visibility="gone" />
+
+            <!-- ② スポット到達 お祝いポップアップ（地図中央） -->
+            <LinearLayout
+                android:id="@+id/layoutSpotCelebration"
+                android:layout_width="270dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/celebration_popup_bg"
+                android:paddingHorizontal="24dp"
+                android:paddingVertical="20dp"
+                android:elevation="10dp"
+                android:visibility="gone">
+
+                <!-- お祝い絵文字 -->
+                <TextView
+                    android:id="@+id/tvCelebEmoji"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🎊"
+                    android:textSize="44sp"
+                    android:paddingBottom="6dp" />
+
+                <!-- スポット名（大きく・ゴールド） -->
+                <TextView
+                    android:id="@+id/tvCelebSpotName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="19sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/star_color"
+                    android:gravity="center"
+                    android:paddingBottom="4dp" />
+
+                <!-- チェックイン達成メッセージ -->
+                <TextView
+                    android:id="@+id/tvCelebMessage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="チェックイン達成！"
+                    android:textSize="15sp"
+                    android:textColor="#FFFFFFFF"
+                    android:paddingBottom="12dp" />
+
+                <!-- 星マーク進捗（大きく） -->
+                <TextView
+                    android:id="@+id/tvCelebStars"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="30sp"
+                    android:textColor="@color/star_color"
+                    android:paddingBottom="4dp" />
+
+                <!-- 市町名＋スポット数 -->
+                <TextView
+                    android:id="@+id/tvCelebProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_accent" />
+
+            </LinearLayout>
+
+            <!-- ズームボタン（地図右下に重ねて表示） -->
+            <LinearLayout
+                android:layout_width="44dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="12dp"
+                android:orientation="vertical"
+                android:background="#CC1A1A2E"
+                android:elevation="4dp">
+
+                <Button
+                    android:id="@+id/btnZoomIn"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:text="＋"
+                    android:textSize="20sp"
+                    android:textColor="@color/white"
+                    android:padding="0dp"
+                    android:background="@android:color/transparent"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    style="@style/Widget.AppCompat.Button.Borderless" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#44FFFFFF" />
+
+                <Button
+                    android:id="@+id/btnZoomOut"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:text="－"
+                    android:textSize="20sp"
+                    android:textColor="@color/white"
+                    android:padding="0dp"
+                    android:background="@android:color/transparent"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    style="@style/Widget.AppCompat.Button.Borderless" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <!-- ===============================================================
+             【下部 スクロール】 ダッシュボード＋開拓日誌（残り40%、独立スクロール）
+             =============================================================== -->
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="4"
+            android:background="@color/bg_normal"
+            android:fillViewport="false">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- ダッシュボード（現在の戦況） -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="8dp"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="4dp"
+                    app:cardCornerRadius="10dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/dashboard_bg">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp">
+
+                        <!-- タイトル -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="━ 現在の戦況 ━"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_accent"
+                            android:gravity="center"
+                            android:paddingBottom="6dp" />
+
+                        <!-- 市町名 ＋ 星マーク（同じ行） -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingBottom="6dp">
+
+                            <TextView
+                                android:id="@+id/tvCurrentCity"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="現在地：取得中..."
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:id="@+id/tvStars"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="☆☆☆☆"
+                                android:textSize="20sp"
+                                android:textColor="@color/star_color" />
+
+                        </LinearLayout>
+
+                        <!-- 進捗バー ＋ 達成率（同じ行） -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ProgressBar
+                                android:id="@+id/pbCity"
+                                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                                android:layout_width="0dp"
+                                android:layout_height="10dp"
+                                android:layout_weight="1"
+                                android:max="100"
+                                android:progress="0"
+                                android:progressTint="@color/progress_color" />
+
+                            <TextView
+                                android:id="@+id/tvPercent"
+                                android:layout_width="42dp"
+                                android:layout_height="wrap_content"
+                                android:text="0%"
+                                android:textSize="13sp"
+                                android:textColor="@color/text_accent"
+                                android:textStyle="bold"
+                                android:gravity="end"
+                                android:paddingStart="6dp" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 開拓日誌 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="8dp"
+                    android:paddingTop="2dp">
+
+                    <!-- ヘッダー + ソートボタン -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingBottom="6dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📜 開拓日誌"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <Button
+                            android:id="@+id/btnSortDistance"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="距離順"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="6dp"
+                            android:minHeight="36dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_marginEnd="4dp" />
+
+                        <Button
+                            android:id="@+id/btnSortProgress"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="達成率順"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="6dp"
+                            android:minHeight="36dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 市町リスト（NestedScrollView内なのでsetNestedScrollingEnabled=false） -->
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvCities"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+    </LinearLayout>
+
+    <!-- ===================================================================
+         市町制覇ポップアップ（FrameLayout内で中央に重ねて表示）
+         =================================================================== -->
+    <!-- 紙吹雪オーバーレイ -->
+    <View
+        android:id="@+id/confettiView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/confetti_overlay"
+        android:visibility="gone" />
+
+    <!-- 制覇ダイアログ本体 -->
+    <LinearLayout
+        android:id="@+id/overlayConquest"
+        android:layout_width="280dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/conquest_popup_bg"
+        android:padding="24dp"
+        android:gravity="center"
+        android:elevation="20dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚔️🏆⚔️"
+            android:textSize="36sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvConquestTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="【〇〇市 制覇！】"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/conquest_title"
+            android:gravity="center"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvConquestSub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="称号：〇〇の開拓者 をアンロック！"
+            android:textSize="14sp"
+            android:textColor="@color/conquest_sub"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="タップで閉じる"
+            android:textSize="11sp"
+            android:textColor="@color/text_secondary"
+            android:paddingTop="16dp" />
+
+    </LinearLayout>
+
+    <!-- ===================================================================
+         宝箱ポップアップ（FrameLayout内で中央に重ねて表示）
+         =================================================================== -->
+    <LinearLayout
+        android:id="@+id/layoutTreasureChest"
+        android:layout_width="290dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/treasure_chest_popup_bg"
+        android:padding="24dp"
+        android:gravity="center"
+        android:elevation="25dp"
+        android:visibility="gone">
+
+        <!-- 宝箱絵文字 -->
+        <TextView
+            android:id="@+id/tvChestEmoji"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📦"
+            android:textSize="56sp"
+            android:paddingBottom="4dp" />
+
+        <!-- タイトル -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="宝　箱　発　見！"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/treasure_title"
+            android:gravity="center"
+            android:paddingBottom="8dp" />
+
+        <!-- 報酬内容（半径・マス数） -->
+        <TextView
+            android:id="@+id/tvChestPrize"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="探索半径 500m\n× 50マス 有効！"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/treasure_prize"
+            android:gravity="center"
+            android:paddingBottom="16dp" />
+
+        <!-- ボタン行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- 使うボタン -->
+            <Button
+                android:id="@+id/btnChestOpen"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="開ける！"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:backgroundTint="@color/treasure_prize"
+                style="@style/Widget.AppCompat.Button" />
+
+            <!-- 見送るボタン -->
+            <Button
+                android:id="@+id/btnChestSkip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="見送る"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                style="@style/Widget.AppCompat.Button.Borderless" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

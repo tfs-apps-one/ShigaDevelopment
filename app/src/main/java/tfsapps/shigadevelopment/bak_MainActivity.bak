@@ -1,0 +1,1313 @@
+package tfsapps.shigadevelopment;
+
+import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.app.ProgressDialog;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.location.Location;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.TileOverlay;
+import com.google.android.gms.maps.model.TileOverlayOptions;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 貊玖ｳ髢区挙繝ｩ繝ｪ繝ｼ 繝｡繧､繝ｳ繧｢繧ｯ繝�ぅ繝薙ユ繧｣�医�繝ｩ繝ｳB蟇ｾ蠢懃沿��
+ *
+ * 謗｢邏｢邇� = (謇句虚雕冗�ｴ繝｡繝�す繝･謨ｰ + 繧ｳ繝ｳ繝励Μ繝ｼ繝域ｸ医∩蟶ら伴縺ｮ蜈ｨ繝｡繝�す繝･謨ｰ) / 貊玖ｳ蜈ｨ繝｡繝�す繝･謨ｰ
+ *
+ * 蟶ら伴繧ｳ繝ｳ繝励Μ繝ｼ繝域凾縺ｮ蜃ｦ逅�ｼ亥ｯｾ遲砲��:
+ *   1. 縺昴�蟶ら伴蜀��謇句虚雕冗�ｴ繝｡繝�す繝･繧� visited_meshes 縺九ｉ蜑企勁�磯㍾隍�き繧ｦ繝ｳ繝磯亟豁｢��
+ *   2. 蟶ら伴縺ｮ蜈ｨ繝｡繝�す繝･ID繧� FogTileProvider 縺ｫ貂｡縺励※髴ｧ繧剃ｸ豌苓ｧ｣謾ｾ
+ *   3. city_completion 繝��繝悶Ν縺ｫ險倬鹸
+ */
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
+
+    private static final int PERM_LOCATION = 1001;
+
+    // --- Map ---
+    private GoogleMap mMap;
+    private TileOverlay fogOverlay;
+    private FogTileProvider fogProvider;
+
+    // 迴ｾ蝨ｨ蝨ｰ 125m 邱大� + 300m 繝√ぉ繝�け繧､繝ｳ繝ｪ繝ｳ繧ｰ
+    private Circle myRadiusCircle;
+    private Circle checkinRadiusCircle;
+
+    // 繧ｹ繝昴ャ繝医�繝ｼ繧ｫ繝ｼ��potId 竊� Marker��
+    private final Map<String, Marker> spotMarkers = new HashMap<>();
+
+    // >>>test_make>>>
+    // ---- 繝�ヰ繝�げ繝｢繝ｼ繝臥畑螟画焚 ----
+    /** markerId 竊� spotId 騾�ｼ輔″繝槭ャ繝暦ｼ医ち繝��蛻､螳壹↓菴ｿ逕ｨ�� */
+    private final Map<String, String> markerToSpotId = new HashMap<>();
+    /** spotId 竊� 騾｣邯壹ち繝��蝗樊焚 */
+    private final Map<String, Integer> debugTapCount = new HashMap<>();
+    /** spotId 竊� 譛蠕後↓繧ｿ繝��縺励◆譎ょ綾 */
+    private final Map<String, Long> debugLastTapTime = new HashMap<>();
+    private static final int  DEBUG_TAP_THRESHOLD   = 10;    // 10蝗槭〒驕疲�ON
+    private static final long DEBUG_TAP_WINDOW_MS   = 5000L; // 5遘剃ｻ･蜀��騾｣邯壹ち繝��
+    private static final long DEBUG_HOLD_MS         = 10000L;// 10遘偵�繝ｼ繝ｫ繝峨〒驕疲�OFF
+    private final Handler  debugHoldHandler  = new Handler(Looper.getMainLooper());
+    private Runnable       debugHoldRunnable = null;
+    private float          debugHoldStartX, debugHoldStartY;
+    private static final float DEBUG_HOLD_SLOP = 40f; // 繝帙�繝ｫ繝我ｸｭ縺ｮ險ｱ螳ｹ遘ｻ蜍暮㍼(px)
+    /** 謗｢邏｢邇�お繝ｪ繧｢騾｣邯壹ち繝��謨ｰ��10蝗槭〒蜈ｨ繝ｪ繧ｻ繝�ヨ�� */
+    private int  debugExpTapCount   = 0;                  // >>>test_make>>>
+    private long debugExpLastTapMs  = 0L;                 // >>>test_make>>>
+    // <<<test_make<<<
+
+    // 鬲皮視縺ｮ髴ｧ繧ｨ繝輔ぉ繧ｯ繝�
+    private static final LatLng MAOU_CASTLE  = new LatLng(35.4697, 136.1400);
+    private static final LatLng SHIGA_CENTER = new LatLng(35.18,   136.07);
+    private final List<Circle>  maouFogCircles  = new ArrayList<>();
+    private int[]               maouBaseAlphas  = new int[0];
+    private ValueAnimator        maouFogAnimator;
+
+    // --- Location ---
+    private FusedLocationProviderClient fusedClient;
+    private LocationCallback locationCallback;
+    private double myLat = 0, myLon = 0;
+
+    // --- Game ---
+    private GameData    gameData;
+    private DatabaseHelper db;
+    private MeshLookupTable lookupTable;
+
+    // 謇句虚雕冗�ｴ繝｡繝�す繝･��n-memory��
+    private Set<Long>  visitedMeshes      = new HashSet<>();
+    // 繧ｳ繝ｳ繝励Μ繝ｼ繝域ｸ医∩蟶ら伴縺ｮ蜈ｨ繝｡繝�す繝･ID��n-memory縲�悸謠冗判逕ｨ��
+    private Set<Long>  completedCityMeshes = new HashSet<>();
+    // 繧ｳ繝ｳ繝励Μ繝ｼ繝域ｸ医∩蟶ら伴ID
+    private Set<String> completedCityIds   = new HashSet<>();
+
+    // 笏笏 螳晉ｮｱ繝悶�繧ｹ繝医す繧ｹ繝�Β 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+    /** 迴ｾ蝨ｨ縺ｮ繝悶�繧ｹ繝亥濠蠕� (m)縲�0 = 繝悶�繧ｹ繝医↑縺� */
+    private float boostRadius         = 0f;
+    /** 繝悶�繧ｹ繝域ｮ九ｊ譛牙柑繝槭せ謨ｰ */
+    private int   boostRemainingMeshes = 0;
+    /** 繝悶�繧ｹ繝井ｸｭ縺ｫ陦ｨ遉ｺ縺吶ｋ蜊雁ｾ��繧ｵ繝ｼ繧ｯ繝ｫ */
+    private Circle boostRadiusCircle  = null;
+
+    /** 螳晉ｮｱ繝昴ャ繝励い繝��繧定｡ｨ遉ｺ荳ｭ縺� */
+    private boolean isTreasureVisible = false;
+    /** 螳晉ｮｱ繝昴ャ繝励い繝��縺ｫ陦ｨ遉ｺ縺吶ｋ蝣ｱ驟ｬ�医け繝ｪ繝�け縺ｧ遒ｺ螳夲ｼ� */
+    private int pendingBoostRadius    = 0;
+
+    // [繝励Λ繝ｳB] 謗｢邏｢邇�
+    private int totalShigaMeshCount = 0;
+
+    // --- UI ---
+    private TextView tvCurrentCity;
+    private TextView tvStars;
+    private TextView tvPercent;
+    private ProgressBar pbCity;
+    private RecyclerView rvCities;
+    private CityAdapter cityAdapter;
+    private LinearLayout overlayConquestLayout;
+    private TextView tvConquestTitle;
+    private TextView tvConquestSub;
+    private View confettiView;
+    private TextView tvExplorationRate;    // 蝨ｰ蝗ｳ荳翫�謗｢邏｢邇�ユ繧ｭ繧ｹ繝�
+    // 繧ｹ繝昴ャ繝亥芦驕斐♀逾昴＞繝昴ャ繝励い繝��讒区�繝薙Η繝ｼ
+    private android.widget.LinearLayout layoutSpotCelebration;
+    private View     celebFlashView;
+    private TextView tvCelebSpotName;
+    private TextView tvCelebMessage;
+    private TextView tvCelebStars;
+    private TextView tvCelebProgress;
+
+    private boolean isHeroMode = false;
+
+    // 螳晉ｮｱUI
+    private android.widget.LinearLayout layoutTreasureChest;
+    private TextView tvChestPrize;
+    private TextView tvBoostStatus;
+    private Button   btnChestOpen;
+    private Button   btnChestSkip;
+
+    // =========================================================================
+    // onCreate
+    // =========================================================================
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        db          = DatabaseHelper.getInstance(this);
+        gameData    = GameData.getInstance();
+        lookupTable = MeshLookupTable.getInstance();
+
+        // DB 縺九ｉ蠕ｩ蜈�
+        visitedMeshes = db.loadVisitedMeshes();
+        gameData.restoreFromDb(db.loadVisitedSpots());
+
+        // 繧ｳ繝ｳ繝励Μ繝ｼ繝域ｸ医∩蟶ら伴縺ｮ蠕ｩ蜈�
+        completedCityIds = db.loadCompletedCityIds();
+        for (CityInfo c : gameData.cities) {
+            if (completedCityIds.contains(c.id)) c.isCompleted = true;
+        }
+
+        isHeroMode = db.isHeroEndingAchieved();
+
+        // UI蜿ら�
+        tvCurrentCity         = findViewById(R.id.tvCurrentCity);
+        tvStars               = findViewById(R.id.tvStars);
+        tvPercent             = findViewById(R.id.tvPercent);
+        pbCity                = findViewById(R.id.pbCity);
+        rvCities              = findViewById(R.id.rvCities);
+        overlayConquestLayout = findViewById(R.id.overlayConquest);
+        tvConquestTitle       = findViewById(R.id.tvConquestTitle);
+        tvConquestSub         = findViewById(R.id.tvConquestSub);
+        confettiView          = findViewById(R.id.confettiView);
+        tvExplorationRate      = findViewById(R.id.tvExplorationRate);
+        tvBoostStatus          = findViewById(R.id.tvBoostStatus);
+        layoutSpotCelebration  = findViewById(R.id.layoutSpotCelebration);
+        celebFlashView         = findViewById(R.id.celebFlashView);
+        tvCelebSpotName        = findViewById(R.id.tvCelebSpotName);
+        tvCelebMessage         = findViewById(R.id.tvCelebMessage);
+        tvCelebStars           = findViewById(R.id.tvCelebStars);
+        tvCelebProgress        = findViewById(R.id.tvCelebProgress);
+
+        // 螳晉ｮｱUI
+        layoutTreasureChest = findViewById(R.id.layoutTreasureChest);
+        tvChestPrize        = findViewById(R.id.tvChestPrize);
+        btnChestOpen        = findViewById(R.id.btnChestOpen);
+        btnChestSkip        = findViewById(R.id.btnChestSkip);
+
+        // >>>test_make>>>
+        // 謗｢邏｢邇�お繝ｪ繧｢繧�10蝗樣｣邯壹ち繝�� 竊� 蜈ｨ繝��繧ｿ繝ｪ繧ｻ繝�ヨ�磯幕逋ｺ閠�ョ繝舌ャ繧ｰ逕ｨ��
+        tvExplorationRate.setOnClickListener(v -> {
+            long now = System.currentTimeMillis();
+            if (now - debugExpLastTapMs > DEBUG_TAP_WINDOW_MS) {
+                debugExpTapCount = 1;
+            } else {
+                debugExpTapCount++;
+            }
+            debugExpLastTapMs = now;
+            if (debugExpTapCount >= DEBUG_TAP_THRESHOLD) {
+                debugExpTapCount = 0;
+                onDebugFullReset();
+            }
+        });
+        // <<<test_make<<<
+
+        // RecyclerView
+        cityAdapter = new CityAdapter(this, gameData.cities);
+        rvCities.setLayoutManager(new LinearLayoutManager(this));
+        rvCities.setAdapter(cityAdapter);
+        rvCities.setNestedScrollingEnabled(false);
+
+        // >>>test_make>>>
+        // 髢区挙譌･隱後Μ繧ｹ繝�: 蟶ら伴繧ｫ繝ｼ繝�10騾｣邯壹ち繝�� 竊� 縺昴�蟶ら伴縺ｮ4繧ｹ繝昴ャ繝亥�驕疲�
+        cityAdapter.setDebugCityAchieveListener(cityId -> {
+            CityInfo city = gameData.findCityById(cityId);
+            if (city == null) return;
+            if (city.isCompleted) {
+                Toast.makeText(this,
+                        "[DEBUG] " + city.name + " 縺ｯ譌｢縺ｫ繧ｳ繝ｳ繝励Μ繝ｼ繝域ｸ医∩縺ｧ縺�",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // 譛ｪ驕疲�縺ｮ繧ｹ繝昴ャ繝医ｒ鬆�分縺ｫ驕疲�繝輔Λ繧ｰON縺ｫ縺吶ｋ
+            for (SpotInfo spot : city.spots) {
+                if (!spot.isVisited) {
+                    onDebugSpotAchieve(spot.id);
+                }
+            }
+        });
+        // <<<test_make<<<
+
+        // 繧ｽ繝ｼ繝医�繧ｿ繝ｳ
+        Button btnSortDistance = findViewById(R.id.btnSortDistance);
+        Button btnSortProgress = findViewById(R.id.btnSortProgress);
+        btnSortDistance.setOnClickListener(v ->
+                cityAdapter.setSortMode(CityAdapter.SortMode.BY_DISTANCE));
+        btnSortProgress.setOnClickListener(v ->
+                cityAdapter.setSortMode(CityAdapter.SortMode.BY_PROGRESS));
+        btnSortDistance.setOnLongClickListener(v -> { showResetDialog(); return true; });
+
+        if (isHeroMode) applyHeroTheme();
+
+        // 繧ｺ繝ｼ繝�繝懊ち繝ｳ
+        Button btnZoomIn  = findViewById(R.id.btnZoomIn);
+        Button btnZoomOut = findViewById(R.id.btnZoomOut);
+        btnZoomIn.setOnClickListener(v -> {
+            if (mMap != null) mMap.animateCamera(CameraUpdateFactory.zoomIn());
+        });
+        btnZoomOut.setOnClickListener(v -> {
+            if (mMap != null) mMap.animateCamera(CameraUpdateFactory.zoomOut());
+        });
+
+        // 蝨ｰ蝗ｳ蛻晄悄蛹�
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getSupportFragmentManager()
+                        .findFragmentById(R.id.mapFragment);
+        if (mapFragment != null) mapFragment.getMapAsync(this);
+
+        // 菴咲ｽｮ諠��ｱ
+        fusedClient = LocationServices.getFusedLocationProviderClient(this);
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult result) {
+                Location loc = result.getLastLocation();
+                if (loc != null) onLocationUpdate(loc);
+            }
+        };
+
+        // [繝励Λ繝ｳB] 繝ｫ繝�け繧｢繝��繝��繝悶Ν縺ｮ貅門ｙ
+        initializeLookupTable();
+        requestLocationPermission();
+    }
+
+    // =========================================================================
+    // [繝励Λ繝ｳB] 繝ｫ繝�け繧｢繝��繝��繝悶Ν蛻晄悄蛹�
+    // =========================================================================
+    private void initializeLookupTable() {
+        if (MeshLookupTable.isAlreadyGenerated(this) && !db.isMeshLookupEmpty()) {
+            // 2蝗樒岼莉･髯�: SQLite 縺九ｉ鬮倬溘Ο繝ｼ繝�
+            new Thread(() -> {
+                lookupTable.loadFromDb(db);
+                loadCompletedCityMeshesFromDb();
+                totalShigaMeshCount = lookupTable.getTotalShigaMeshCount();
+                runOnUiThread(this::updateExplorationRateUI);
+            }).start();
+        } else {
+            // 蛻晏屓: 逕滓�繝繧､繧｢繝ｭ繧ｰ繧定｡ｨ遉ｺ縺励※繝舌ャ繧ｯ繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒逕滓�
+            showLookupGenerationDialog();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void showLookupGenerationDialog() {
+        ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setTitle("蛻晏屓繧ｻ繝�ヨ繧｢繝��");
+        dialog.setMessage("貊玖ｳ逵後�繝｡繝�す繝･繝��繧ｿ繧堤函謌蝉ｸｭ...\n�亥�蝗槭�縺ｿ縲∫ｴ�2縲�5遘偵°縺九ｊ縺ｾ縺呻ｼ�");
+        dialog.setCancelable(false);
+        dialog.show();
+
+        lookupTable.generateAsync(this, db, () -> {
+            // 螳御ｺ�ｾ後↓ UI 繧ｹ繝ｬ繝�ラ縺ｧ螳溯｡�
+            loadCompletedCityMeshesFromDb();
+            totalShigaMeshCount = lookupTable.getTotalShigaMeshCount();
+            updateExplorationRateUI();
+            dialog.dismiss();
+            Toast.makeText(this,
+                "繝｡繝�す繝･繝��繧ｿ逕滓�螳御ｺ�ｼ―n貊玖ｳ蜈ｨ菴� " + totalShigaMeshCount + " 繝槭せ",
+                Toast.LENGTH_LONG).show();
+        });
+    }
+
+    /** 譌｢繧ｳ繝ｳ繝励Μ繝ｼ繝域ｸ医∩蟶ら伴縺ｮ繝｡繝�す繝･ID繧奪B縺九ｉ隱ｭ縺ｿ霎ｼ繧薙〒繝｡繝｢繝ｪ縺ｫ螻暮幕 */
+    private void loadCompletedCityMeshesFromDb() {
+        completedCityMeshes.clear();
+        for (String cityId : completedCityIds) {
+            completedCityMeshes.addAll(db.getMeshIdsForCity(cityId));
+        }
+    }
+
+    // =========================================================================
+    // onMapReady
+    // =========================================================================
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        mMap = googleMap;
+
+        mMap.getUiSettings().setZoomGesturesEnabled(true);
+        mMap.getUiSettings().setScrollGesturesEnabled(true);
+        mMap.getUiSettings().setRotateGesturesEnabled(true);
+        mMap.getUiSettings().setTiltGesturesEnabled(false);
+        mMap.getUiSettings().setZoomControlsEnabled(false);
+
+        LatLng shigaCenter = new LatLng(35.18, 136.07);
+        mMap.moveCamera(CameraUpdateFactory.newCameraPosition(
+                new CameraPosition.Builder().target(shigaCenter).zoom(9.5f).build()));
+
+        // 髴ｧ繝励Ο繝舌う繝繝ｼ�医�繝ｩ繝ｳB迚茨ｼ壼�繝｡繝�す繝･ID繧ｻ繝�ヨ繧呈ｸ｡縺呻ｼ�
+        fogProvider = new FogTileProvider(visitedMeshes, completedCityMeshes);
+        fogOverlay  = mMap.addTileOverlay(new TileOverlayOptions()
+                .tileProvider(fogProvider).zIndex(100));
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            mMap.setMyLocationEnabled(true);
+        }
+
+        setupMaouFogEffect();
+        addSpotMarkersToMap();
+        // >>>test_make>>>
+        setupDebugInteractions(); // 繝�ヰ繝�げ繝｢繝ｼ繝�: 繧ｿ繝��驕疲�繝ｻ繝帙�繝ｫ繝峨Μ繧ｻ繝�ヨ
+        // <<<test_make<<<
+    }
+
+    // =========================================================================
+    // 菴咲ｽｮ諠��ｱ譖ｴ譁ｰ
+    // =========================================================================
+    private void onLocationUpdate(Location loc) {
+        myLat = loc.getLatitude();
+        myLon  = loc.getLongitude();
+
+        long meshId = MeshCalculator.calcMeshId(myLat, myLon);
+
+        // 貊玖ｳ逵悟�縺ｮ繝｡繝�す繝･縺ｮ縺ｿ險倬鹸縺吶ｋ�育恁螟悶�遘ｻ蜍輔�繧ｫ繧ｦ繝ｳ繝医＠縺ｪ縺�ｼ�
+        if (!db.isMeshLookupEmpty() && db.isMeshInShiga(meshId)) {
+            boolean newMesh = db.addVisitedMesh(meshId);
+            if (newMesh) {
+                visitedMeshes.add(meshId);
+                fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+                fogOverlay.clearTileCache();
+                updateExplorationRateUI();
+
+                // 笏笏 繝悶�繧ｹ繝医�繧ｫ繧ｦ繝ｳ繝医ム繧ｦ繝ｳ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+                if (boostRemainingMeshes > 0) {
+                    boostRemainingMeshes--;
+                    if (boostRemainingMeshes <= 0) {
+                        // 繝悶�繧ｹ繝育ｵゆｺ�
+                        boostRadius = 0f;
+                        runOnUiThread(() -> {
+                            updateBoostStatusUI();
+                            updateMyRadiusCircle(myLat, myLon);
+                        });
+                    } else {
+                        runOnUiThread(this::updateBoostStatusUI);
+                    }
+                }
+
+                // >>>test_make_takara>>>
+                // ---- 宝箱発生確率（テスト用: 30〜50%） ----
+                // ★本番リリース前に下記コメント行を有効にし、テスト行を削除すること★
+                // float chance = 0.01f + (float)(Math.random() * 0.04f); // 本番: 1%〜5%
+                float chance = 0.30f + (float)(Math.random() * 0.20f); // テスト: 30%〜50%
+                // <<<test_make_takara<<<
+                if (Math.random() < chance && !isTreasureVisible) {
+                    // 蝣ｱ驟ｬ繧偵％縺薙〒豎ｺ螳夲ｼ400/500/600m縺九ｉ繝ｩ繝ｳ繝€繝
+                    int[] radii = {400, 500, 600};
+                    pendingBoostRadius = radii[(int)(Math.random() * radii.length)];
+                    runOnUiThread(() -> showTreasureChest(pendingBoostRadius));
+                }
+            }
+        }
+
+        Cit    private void onCityCompleted(CityInfo city) {
+        completedCityIds.add(city.id);
+
+        // 繝舌ャ繧ｯ繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒驥阪＞蜃ｦ逅�ｒ陦後≧
+        new Thread(() -> {
+            // 竭� 縺昴�蟶ら伴縺ｮ蜈ｨ繝｡繝�す繝･ID繧貞叙蠕暦ｼ�B from mesh_city_lookup��
+            Set<Long> cityMeshIds = db.getMeshIdsForCity(city.id);
+            int cityMeshCount = cityMeshIds.size();
+
+            // 竭｡ 繧ｳ繝ｳ繝励Μ繝ｼ繝郁ｨ倬鹸
+            db.markCityCompleted(city.id, cityMeshCount);
+
+            // 竭｢ completedCityMeshes 縺ｫ霑ｽ蜉���isitedMeshes 縺ｯ蜑企勁縺励↑縺�ｼ夊ｻ瑚ｷ｡繧呈ｮ九☆縺溘ａ��
+            completedCityMeshes.addAll(cityMeshIds);
+
+            // 竭｣ 髴ｧ繝励Ο繝舌う繝繝ｼ繧呈峩譁ｰ��ompletedCityMeshes = 繧ｯ繝ｪ繧｢縲」isitedMeshes = 邱代→縺励※谿九ｋ��
+            fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+            fogProvider.addCompletedCityMeshes(cityMeshIds);
+
+            // Activity 縺檎�ｴ譽�ｸ医∩縺ｮ蝣ｴ蜷医�UI謫堺ｽ懊ｒ繧ｹ繧ｭ繝���医け繝ｩ繝�す繝･髦ｲ豁｢��
+            if (isFinishing() || isDestroyed()) return;
+
+            runOnUiThread(() -> {
+                // Activity 縺檎�ｴ譽�ｸ医∩縺ｮ蝣ｴ蜷医�UI謫堺ｽ懊ｒ繧ｹ繧ｭ繝���医け繝ｩ繝�す繝･髦ｲ豁｢��
+                if (isFinishing() || isDestroyed()) return;
+
+                fogOverlay.clearTileCache();
+                updateExplorationRateUI();
+
+                // 貍泌�
+                Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (vib != null && vib.hasVibrator()) {
+                    long[] pattern = {0, 200, 100, 200, 100, 300};
+                    vib.vibrate(VibrationEffect.createWaveform(pattern, -1));
+                }
+                showConquestOverlay(
+                        "縲�" + city.name + " 蛻ｶ隕�ｼ√�",
+                        "遘ｰ蜿ｷ��" + city.name + "縺ｮ髢区挙閠� 繧偵い繝ｳ繝ｭ繝�け�―n"
+                        + "+" + cityMeshCount + " 繝槭せ隗｣謾ｾ��");
+
+                if (gameData.isAllCitiesCompleted()) {
+                    new Handler(Looper.getMainLooper()).postDelayed(this::onGrandEnding, 3500);
+                }
+            });
+        }).start();
+    }芦驕斐お繝輔ぉ繧ｯ繝�
+                showSpotCelebration(spot, city);
+
+                if (city.checkAndUpdateCompletion()) {
+                    onCityCompleted(city);
+                }
+                cityAdapter.refreshData(gameData.cities);
+            }
+        }
+    }
+
+    // =========================================================================
+    // [繝励Λ繝ｳB] 蟶ら伴100%驕疲�譎ゅ�蜃ｦ逅�
+    // =========================================================================
+    private void onCityCompleted(CityInfo city) {
+        completedCityIds.add(city.id);
+
+        // 繝舌ャ繧ｯ繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒驥阪＞蜃ｦ逅�ｒ陦後≧
+        new Thread(() -> {
+            // 竭� 縺昴�蟶ら伴縺ｮ蜈ｨ繝｡繝�す繝･ID繧貞叙蠕暦ｼ�B from mesh_city_lookup��
+            Set<Long> cityMeshIds = db.getMeshIdsForCity(city.id);
+            int cityMeshCount = cityMeshIds.size();
+
+            // 竭｡ 繧ｳ繝ｳ繝励Μ繝ｼ繝郁ｨ倬鹸
+            db.markCityCompleted(city.id, cityMeshCount);
+
+            // 竭｢ completedCityMeshes 縺ｫ霑ｽ蜉���isitedMeshes 縺ｯ蜑企勁縺励↑縺�ｼ夊ｻ瑚ｷ｡繧呈ｮ九☆縺溘ａ��
+            completedCityMeshes.addAll(cityMeshIds);
+
+            // 竭｣ 髴ｧ繝励Ο繝舌う繝繝ｼ繧呈峩譁ｰ��ompletedCityMeshes = 繧ｯ繝ｪ繧｢縲」isitedMeshes = 邱代→縺励※谿九ｋ��
+            fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+            fogProvider.addCompletedCityMeshes(cityMeshIds);
+
+            runOnUiThread(() -> {
+                fogOverlay.clearTileCache();
+                updateExplorationRateUI();
+
+                // 貍泌�
+                Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (vib != null && vib.hasVibrator()) {
+                    long[] pattern = {0, 200, 100, 200, 100, 300};
+                    vib.vibrate(VibrationEffect.createWaveform(pattern, -1));
+                }
+                showConquestOverlay(
+                        "縲�" + city.name + " 蛻ｶ隕�ｼ√�",
+                        "遘ｰ蜿ｷ��" + city.name + "縺ｮ髢区挙閠� 繧偵い繝ｳ繝ｭ繝�け�―n"
+                        + "+" + cityMeshCount + " 繝槭せ隗｣謾ｾ��");
+
+                if (gameData.isAllCitiesCompleted()) {
+                    new Handler(Looper.getMainLooper()).postDelayed(this::onGrandEnding, 3500);
+                }
+            });
+        }).start();
+    }
+
+    // =========================================================================
+    // [繝励Λ繝ｳB] 謗｢邏｢邇ⅡI縺ｮ譖ｴ譁ｰ
+    // =========================================================================
+    private void updateExplorationRateUI() {
+        if (tvExplorationRate == null || totalShigaMeshCount == 0) return;
+
+        // completedCityMeshes + visitedMeshes 縺ｮ驥崎､�ｒ髯､縺�◆蜷郁ｨ医〒謗｢邏｢邇�ｒ險育ｮ励☆繧九�
+        // ��isitedMeshes 縺ｯ繧ｳ繝ｳ繝励Μ繝ｼ繝亥ｾ後ｂ蜑企勁縺励↑縺�◆繧√…ompletedCityMeshes 縺ｨ驥崎､�☆繧句庄閭ｽ諤ｧ縺後≠繧具ｼ�
+        int completedCount = completedCityMeshes.size();
+        int uniqueVisited  = 0;
+        for (Long meshId : visitedMeshes) {
+            if (!completedCityMeshes.contains(meshId)) uniqueVisited++;
+        }
+        int exploredCount = completedCount + uniqueVisited;
+        float rate = (float) exploredCount / totalShigaMeshCount * 100f;
+
+        String text = String.format("謗｢邏｢貂� %.1f%%  (%,d / %,d 繝槭せ)",
+                rate, exploredCount, totalShigaMeshCount);
+        tvExplorationRate.setText(text);
+    }
+
+    // =========================================================================
+    // 繧ｹ繝昴ャ繝亥芦驕� 縺顔･昴＞繧ｨ繝輔ぉ繧ｯ繝茨ｼ医メ繧ｧ繝�け繧､繝ｳ驕疲�譎ゅ�貍泌���
+    //
+    // 貍泌�繧ｷ繝ｼ繧ｱ繝ｳ繧ｹ:
+    //   [0ms]    驥題牡繝輔Λ繝�す繝･�育判髱｢蜈ｨ菴薙′荳迸ｬ蜈峨ｋ��
+    //   [0ms]    縺顔･昴＞繝舌う繝悶Ξ繝ｼ繧ｷ繝ｧ繝ｳ�育洒-遏ｭ-髟ｷ縺ｮ繝ｪ繧ｺ繝���
+    //   [100ms]  繝昴ャ繝励い繝��縺後ヰ繧ｦ繝ｳ繧ｹ縺励↑縺後ｉ逋ｻ蝣ｴ
+    //   [700ms]  譏溘�繝ｼ繧ｯ縺�1蝗櫁ц蜍�
+    //   [3500ms] 繝輔ぉ繝ｼ繝峨い繧ｦ繝医＠縺ｦ豸医∴繧�
+    // =========================================================================
+    private void showSpotCelebration(SpotInfo spot, CityInfo city) {
+        runOnUiThread(() -> {
+            if (layoutSpotCelebration == null) return;
+
+            int visitedCount = city.getVisitedCount();
+            int totalCount   = city.spots.size();
+
+            // 笏笏 繧ｳ繝ｳ繝�Φ繝�ｒ繧ｻ繝�ヨ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+            tvCelebSpotName.setText(spot.name);
+            tvCelebMessage.setText("繝√ぉ繝�け繧､繝ｳ驕疲���");
+            tvCelebStars.setText(buildStarLine(visitedCount, totalCount));
+            tvCelebProgress.setText(city.name + "  " + visitedCount + " / " + totalCount + " 繧ｹ繝昴ャ繝�");
+
+            // 笏笏 竭� 縺顔･昴＞繝舌う繝悶Ξ繝ｼ繧ｷ繝ｧ繝ｳ�育洒-遏ｭ-髟ｷ�� 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+            Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vib != null && vib.hasVibrator()) {
+                long[] pattern    = {0, 80, 50, 80, 50, 250};
+                int[]  amplitudes = {0, 180, 0, 200, 0, 255};
+                vib.vibrate(VibrationEffect.createWaveform(pattern, amplitudes, -1));
+            }
+
+            // 笏笏 竭｡ 驥題牡繝輔Λ繝�す繝･�育椪髢灘��� 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+            if (celebFlashView != null) {
+                celebFlashView.setAlpha(0.85f);
+                celebFlashView.setVisibility(View.VISIBLE);
+                celebFlashView.animate()
+                        .alpha(0f)
+                        .setDuration(350)
+                        .withEndAction(() -> celebFlashView.setVisibility(View.GONE))
+                        .start();
+            }
+
+            // 笏笏 竭｢ 繝昴ャ繝励い繝�� 繝舌え繝ｳ繧ｹ逋ｻ蝣ｴ��100ms蠕後°繧蛾幕蟋具ｼ� 笏笏笏笏笏笏笏笏笏笏
+            layoutSpotCelebration.setVisibility(View.VISIBLE);
+            layoutSpotCelebration.setAlpha(0f);
+            layoutSpotCelebration.setScaleX(0.2f);
+            layoutSpotCelebration.setScaleY(0.2f);
+
+            // 繝舌え繝ｳ繧ｹ繧ｭ繝ｼ繝輔Ξ繝ｼ繝���0.2 竊� 1.15 竊� 0.92 竊� 1.04 竊� 1.0��
+            android.animation.Keyframe kf0 = android.animation.Keyframe.ofFloat(0f,    0.2f);
+            android.animation.Keyframe kf1 = android.animation.Keyframe.ofFloat(0.55f, 1.15f);
+            android.animation.Keyframe kf2 = android.animation.Keyframe.ofFloat(0.75f, 0.92f);
+            android.animation.Keyframe kf3 = android.animation.Keyframe.ofFloat(0.90f, 1.04f);
+            android.animation.Keyframe kf4 = android.animation.Keyframe.ofFloat(1.0f,  1.00f);
+
+            android.animation.PropertyValuesHolder pvhX =
+                    android.animation.PropertyValuesHolder.ofKeyframe("scaleX", kf0, kf1, kf2, kf3, kf4);
+            android.animation.PropertyValuesHolder pvhY =
+                    android.animation.PropertyValuesHolder.ofKeyframe("scaleY", kf0, kf1, kf2, kf3, kf4);
+
+            ObjectAnimator bounceAnim = ObjectAnimator.ofPropertyValuesHolder(
+                    layoutSpotCelebration, pvhX, pvhY);
+            bounceAnim.setDuration(500);
+
+            ObjectAnimator fadeIn = ObjectAnimator.ofFloat(
+                    layoutSpotCelebration, "alpha", 0f, 1f);
+            fadeIn.setDuration(200);
+
+            AnimatorSet appear = new AnimatorSet();
+            appear.playTogether(bounceAnim, fadeIn);
+            appear.setStartDelay(100);
+            appear.addListener(new AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(Animator a) {
+                    // 笏笏 竭｣ 譏溘�繝ｼ繧ｯ閼亥虚��1蝗橸ｼ俄楳笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+                    if (tvCelebStars != null) {
+                        AnimatorSet pulse = new AnimatorSet();
+                        pulse.playTogether(
+                                ObjectAnimator.ofFloat(tvCelebStars, "scaleX", 1f, 1.4f, 1f),
+                                ObjectAnimator.ofFloat(tvCelebStars, "scaleY", 1f, 1.4f, 1f));
+                        pulse.setDuration(400);
+                        pulse.setInterpolator(new AccelerateDecelerateInterpolator());
+                        pulse.start();
+                    }
+
+                    // 笏笏 竭､ 3遘貞ｾ後↓繝輔ぉ繝ｼ繝峨い繧ｦ繝域ｶ亥悉 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+                    new Handler(Looper.getMainLooper()).postDelayed(() ->
+                        layoutSpotCelebration.animate()
+                                .alpha(0f)
+                                .scaleX(0.85f)
+                                .scaleY(0.85f)
+                                .setDuration(400)
+                                .withEndAction(() -> {
+                                    layoutSpotCelebration.setVisibility(View.GONE);
+                                    layoutSpotCelebration.setScaleX(1f);
+                                    layoutSpotCelebration.setScaleY(1f);
+                                })
+                                .start(),
+                    3000);
+                }
+            });
+            appear.start();
+        });
+    }
+
+    private String buildStarLine(int visited, int total) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) sb.append(i < visited ? "笘�" : "笘�");
+        return sb.toString();
+    }
+
+    // =========================================================================
+    // 繝繝�す繝･繝懊�繝画峩譁ｰ
+    // =========================================================================
+    private void updateDashboard(CityInfo city) {
+        if (city == null) return;
+        runOnUiThread(() -> {
+            tvCurrentCity.setText("迴ｾ蝨ｨ蝨ｰ��" + city.name);
+            int visited = city.getVisitedCount();
+            int total   = city.spots.size();
+            int pct     = city.getProgressPercent();
+            StringBuilder stars = new StringBuilder();
+            for (int i = 0; i < total; i++) stars.append(i < visited ? "笘�" : "笘�");
+            tvStars.setText(stars);
+            tvPercent.setText(visited + "/" + total);
+            pbCity.setProgress(pct);
+        });
+    }
+
+    // =========================================================================
+    // 繧ｰ繝ｩ繝ｳ繝峨お繝ｳ繝�ぅ繝ｳ繧ｰ
+    // =========================================================================
+    private void onGrandEnding() {
+        db.setHeroEndingAchieved();
+        isHeroMode = true;
+        applyHeroTheme();
+        showConquestOverlay(
+                "笘� 貊玖ｳ繧呈舞縺｣縺溯恭髮� 笘�",
+                "蜈ｨ19蟶ら伴繧貞宛隕�ｼ―n縺ゅ↑縺溘�莨晁ｪｬ縺ｮ髢区挙閠�→縺ｪ縺｣縺滂ｼ�");
+        Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (vib != null && vib.hasVibrator()) {
+            long[] pattern = {0, 500, 100, 500, 100, 500, 100, 1000};
+            vib.vibrate(VibrationEffect.createWaveform(pattern, -1));
+        }
+    }
+
+    // =========================================================================
+    // 蛻ｶ隕��繝��繧｢繝��
+    // =========================================================================
+    private void showConquestOverlay(String title, String subtitle) {
+        runOnUiThread(() -> {
+            tvConquestTitle.setText(title);
+            tvConquestSub.setText(subtitle);
+            overlayConquestLayout.setVisibility(View.VISIBLE);
+            overlayConquestLayout.setAlpha(0f);
+            overlayConquestLayout.setScaleX(0.5f);
+            overlayConquestLayout.setScaleY(0.5f);
+
+            AnimatorSet anim = new AnimatorSet();
+            anim.playTogether(
+                    ObjectAnimator.ofFloat(overlayConquestLayout, "alpha",  0f, 1f),
+                    ObjectAnimator.ofFloat(overlayConquestLayout, "scaleX", 0.5f, 1f),
+                    ObjectAnimator.ofFloat(overlayConquestLayout, "scaleY", 0.5f, 1f));
+            anim.setDuration(500);
+            anim.setInterpolator(new AccelerateDecelerateInterpolator());
+            anim.start();
+
+            if (confettiView != null) {
+                confettiView.setVisibility(View.VISIBLE);
+                ValueAnimator blink = ValueAnimator.ofFloat(0f, 1f, 0.3f, 1f, 0.3f, 1f, 0f);
+                blink.setDuration(3500);
+                blink.addUpdateListener(a -> confettiView.setAlpha((Float) a.getAnimatedValue()));
+                blink.addListener(new AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(Animator a) {
+                        if (confettiView != null) confettiView.setVisibility(View.GONE);
+                    }
+                });
+                blink.start();
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(() ->
+                    runOnUiThread(this::hideConquestOverlay), 5000);
+            overlayConquestLayout.setOnClickListener(v -> hideConquestOverlay());
+        });
+    }
+
+    private void hideConquestOverlay() {
+        if (overlayConquestLayout.getVisibility() != View.VISIBLE) return;
+        AnimatorSet anim = new AnimatorSet();
+        anim.playTogether(
+                ObjectAnimator.ofFloat(overlayConquestLayout, "alpha", 1f, 0f),
+                ObjectAnimator.ofFloat(overlayConquestLayout, "scaleY", 1f, 0.8f));
+        anim.setDuration(300);
+        anim.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator a) {
+                overlayConquestLayout.setVisibility(View.GONE);
+            }
+        });
+        anim.start();
+    }
+
+    // =========================================================================
+    // 闍ｱ髮�ユ繝ｼ繝�
+    // =========================================================================
+    private void applyHeroTheme() {
+        View root = findViewById(R.id.rootLayout);
+        if (root != null) root.setBackgroundColor(getResources().getColor(R.color.hero_bg, null));
+        setTitle("笘� 貊玖ｳ髢区挙繝ｩ繝ｪ繝ｼ �櫁恭髮�沿�� 笘�");
+    }
+
+    // =========================================================================
+    // 迴ｾ蝨ｨ蝨ｰ 125m 邱大� + 300m or 繝悶�繧ｹ繝� 繝√ぉ繝�け繧､繝ｳ繝ｪ繝ｳ繧ｰ
+    // =========================================================================
+    private void updateMyRadiusCircle(double lat, double lon) {
+        if (mMap == null) return;
+        LatLng pos = new LatLng(lat, lon);
+
+        // 迴ｾ蝨ｨ譛牙柑縺ｪ繝√ぉ繝�け繧､繝ｳ蜊雁ｾ�ｼ医ヶ繝ｼ繧ｹ繝井ｸｭ縺ｯ繝悶�繧ｹ繝亥濠蠕�ｼ�
+        double activeCheckinRadius = (boostRadius > 0f) ? boostRadius : 300.0;
+
+        if (myRadiusCircle == null) {
+            myRadiusCircle = mMap.addCircle(new CircleOptions()
+                    .center(pos).radius(125)
+                    .strokeWidth(4f)
+                    .strokeColor(Color.argb(220, 0, 230, 80))
+                    .fillColor(Color.argb(25, 0, 255, 80))
+                    .zIndex(200));
+        } else { myRadiusCircle.setCenter(pos); }
+
+        if (checkinRadiusCircle == null) {
+            checkinRadiusCircle = mMap.addCircle(new CircleOptions()
+                    .center(pos).radius(activeCheckinRadius)
+                    .strokeWidth(2f)
+                    .strokeColor(boostRadius > 0f
+                            ? Color.argb(200, 255, 220, 0)   // 繝悶�繧ｹ繝井ｸｭ�壹ざ繝ｼ繝ｫ繝�
+                            : Color.argb(140, 100, 200, 255)) // 騾壼ｸｸ�壽ｰｴ濶ｲ
+                    .fillColor(boostRadius > 0f
+                            ? Color.argb(15, 255, 220, 0)
+                            : Color.argb(8, 100, 200, 255))
+                    .zIndex(199));
+        } else {
+            checkinRadiusCircle.setCenter(pos);
+            checkinRadiusCircle.setRadius(activeCheckinRadius);
+            // 繝悶�繧ｹ繝育憾諷句､牙喧縺ｫ蜷医ｏ縺帙※濶ｲ繧よ峩譁ｰ
+            checkinRadiusCircle.setStrokeColor(boostRadius > 0f
+                    ? Color.argb(200, 255, 220, 0)
+                    : Color.argb(140, 100, 200, 255));
+            checkinRadiusCircle.setFillColor(boostRadius > 0f
+                    ? Color.argb(15, 255, 220, 0)
+                    : Color.argb(8, 100, 200, 255));
+        }
+    }
+
+    // =========================================================================
+    // 蜷肴園繧ｹ繝昴ャ繝� 笆ｼ 繝槭�繧ｫ繝ｼ
+    // =========================================================================
+    private void addSpotMarkersToMap() {
+        if (mMap == null) return;
+        for (CityInfo city : gameData.cities) {
+            for (SpotInfo spot : city.spots) {
+                float hue = spot.isVisited
+                        ? BitmapDescriptorFactory.HUE_YELLOW
+                        : BitmapDescriptorFactory.HUE_AZURE;
+                String snippet = spot.isVisited ? "笨� 繝√ぉ繝�け繧､繝ｳ貂�"
+                        : city.name + "  笆ｼ 蜊雁ｾ�300m莉･蜀�〒繝√ぉ繝�け繧､繝ｳ";
+                Marker marker = mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(spot.lat, spot.lon))
+                        .title(spot.name).snippet(snippet)
+                        .icon(BitmapDescriptorFactory.defaultMarker(hue))
+                        .zIndex(150));
+                if (marker != null) {
+                    spotMarkers.put(spot.id, marker);
+                    // >>>test_make>>>
+                    markerToSpotId.put(marker.getId(), spot.id); // 繝�ヰ繝�げ逕ｨ騾�ｼ輔″
+                    // <<<test_make<<<
+                }
+            }
+        }
+    }
+
+    // >>>test_make>>>
+    // =========================================================================
+    // 繝�ヰ繝�げ繝｢繝ｼ繝�: 10騾｣邯壹ち繝�� 竊� 驕疲�ON / 10遘偵�繝ｼ繝ｫ繝� 竊� 驕疲�OFF
+    // =========================================================================
+    private void setupDebugInteractions() {
+        if (mMap == null) return;
+
+        // ---- 10騾｣邯壹ち繝�� 竊� 驕疲�繝輔Λ繧ｰON ----
+        mMap.setOnMarkerClickListener(marker -> {
+            String spotId = markerToSpotId.get(marker.getId());
+            if (spotId == null) return false; // 繧ｹ繝昴ャ繝井ｻ･螟悶�繝槭�繧ｫ繝ｼ
+
+            long now  = System.currentTimeMillis();
+            Long last = debugLastTapTime.get(spotId);
+            // 蜑榊屓繧ｿ繝��縺九ｉ DEBUG_TAP_WINDOW_MS 莉･蜀�↑繧臥ｶ咏ｶ壹き繧ｦ繝ｳ繝医∬ｶ�∴縺溘ｉ繝ｪ繧ｻ繝�ヨ
+            int count = (last != null && (now - last) < DEBUG_TAP_WINDOW_MS)
+                    ? debugTapCount.getOrDefault(spotId, 0) + 1
+                    : 1;
+            debugTapCount.put(spotId, count);
+            debugLastTapTime.put(spotId, now);
+
+            // >>>test_make>>>
+            // 繝槭�繧ｫ繝ｼ陦ｨ遉ｺ縺ｯ繝ｦ繝ｼ繧ｶ繝ｼ繝｢繝ｼ繝峨�縺ｾ縺ｾ螟画峩縺励↑縺�ｼ�EBUG陦ｨ遉ｺ縺ｯ蜃ｺ縺輔↑縺�ｼ�
+            // <<<test_make<<<
+
+            if (count >= DEBUG_TAP_THRESHOLD) {
+                debugTapCount.put(spotId, 0);
+                onDebugSpotAchieve(spotId); // 驕疲�繝輔Λ繧ｰON
+            }
+            return false; // >>>test_make>>> false=騾壼ｸｸ縺ｮ繝槭�繧ｫ繝ｼ蜍穂ｽ懶ｼ�nfoWindow陦ｨ遉ｺ�峨ｒ邯ｭ謖� <<<test_make<<<
+        });
+
+        // ---- 10遘偵�繝ｼ繝ｫ繝� 竊� 驕疲�繝輔Λ繧ｰOFF ----
+        // 繝槭ャ繝励ン繝･繝ｼ縺ｮ繧ｿ繝�メ繝ｪ繧ｹ繝翫�縺ｧ ACTION_DOWN 譎ゅ↓繧ｿ繧､繝槭�髢句ｧ九�
+        // 謖�ｒ髮｢縺励◆繧� (ACTION_UP/CANCEL) 縺ｾ縺溘�螟ｧ縺阪￥蜍輔°縺励◆繧峨く繝｣繝ｳ繧ｻ繝ｫ
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getSupportFragmentManager()
+                        .findFragmentById(R.id.mapFragment);
+        View mapView = (mapFragment != null) ? mapFragment.getView() : null;
+        if (mapView != null) {
+            mapView.setOnTouchListener((v, event) -> {
+                switch (event.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        debugHoldStartX = event.getX();
+                        debugHoldStartY = event.getY();
+                        startDebugHoldTimer(event.getX(), event.getY());
+                        break;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        // 謖�′ DEBUG_HOLD_SLOP 莉･荳雁虚縺�◆繧峨く繝｣繝ｳ繧ｻ繝ｫ
+                        if (Math.abs(event.getX() - debugHoldStartX) > DEBUG_HOLD_SLOP ||
+                            Math.abs(event.getY() - debugHoldStartY) > DEBUG_HOLD_SLOP) {
+                            cancelDebugHold();
+                        }
+                        break;
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        cancelDebugHold();
+                        break;
+                }
+                return false; // false = 繝槭ャ繝励↓繧､繝吶Φ繝医ｒ豬√☆
+            });
+        }
+    }
+
+    /** 繝帙�繝ｫ繝峨ち繧､繝槭�繧偵せ繧ｿ繝ｼ繝茨ｼ�10遘貞ｾ後↓譛霑大ｍ繧ｹ繝昴ャ繝医ｒ繝ｪ繧ｻ繝�ヨ�� */
+    private void startDebugHoldTimer(float screenX, float screenY) {
+        cancelDebugHold();
+        debugHoldRunnable = () -> {
+            if (mMap == null) return;
+            // 逕ｻ髱｢蠎ｧ讓� 竊� LatLng 縺ｫ螟画鋤縺励※繧ｹ繝昴ャ繝医ｒ謗｢縺�
+            android.graphics.Point pt =
+                    new android.graphics.Point((int) screenX, (int) screenY);
+            LatLng latLng = mMap.getProjection().fromScreenLocation(pt);
+            SpotInfo target = findNearestSpotToLatLng(latLng, 0.006); // 邏�600m莉･蜀�
+            if (target != null) {
+                onDebugSpotReset(target.id);
+            } else {
+                runOnUiThread(() -> Toast.makeText(this,
+                        "[DEBUG] 霑代￥縺ｫ繧ｹ繝昴ャ繝医′隕九▽縺九ｊ縺ｾ縺帙ｓ", Toast.LENGTH_SHORT).show());
+            }
+        };
+        debugHoldHandler.postDelayed(debugHoldRunnable, DEBUG_HOLD_MS);
+    }
+
+    /** 繝帙�繝ｫ繝峨ち繧､繝槭�繧偵く繝｣繝ｳ繧ｻ繝ｫ */
+    private void cancelDebugHold() {
+        if (debugHoldRunnable != null) {
+            debugHoldHandler.removeCallbacks(debugHoldRunnable);
+            debugHoldRunnable = null;
+        }
+    }
+
+    /** LatLng 縺九ｉ謖�ｮ夊ｷ晞屬(蠎ｦ)莉･蜀��譛霑大ｍ繧ｹ繝昴ャ繝医ｒ霑斐☆ */
+    private SpotInfo findNearestSpotToLatLng(LatLng latLng, double thresholdDeg) {
+        SpotInfo nearest = null;
+        double minDist = thresholdDeg;
+        for (CityInfo city : gameData.cities) {
+            for (SpotInfo spot : city.spots) {
+                double dist = Math.hypot(
+                        spot.lat - latLng.latitude,
+                        spot.lon - latLng.longitude);
+                if (dist < minDist) { minDist = dist; nearest = spot; }
+            }
+        }
+        return nearest;
+    }
+
+    /** [DEBUG] 蜷肴園縺ｮ驕疲�繝輔Λ繧ｰ繧丹N縺ｫ縺吶ｋ */
+    private void onDebugSpotAchieve(String spotId) {
+        SpotInfo spot = gameData.findSpotById(spotId);
+        if (spot == null) return;
+        if (spot.isVisited) {
+            Toast.makeText(this,
+                    "[DEBUG] " + spot.name + " 縺ｯ譌｢縺ｫ驕疲�貂医∩縺ｧ縺�",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        spot.isVisited = true;
+        db.addVisitedSpot(spotId);
+
+        runOnUiThread(() -> {
+            Marker m = spotMarkers.get(spotId);
+            if (m != null) {
+                m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                        BitmapDescriptorFactory.HUE_YELLOW));
+                m.setSnippet("笨� 繝√ぉ繝�け繧､繝ｳ貂�"); // >>>test_make>>> 繝ｦ繝ｼ繧ｶ繝ｼ繝｢繝ｼ繝芽｡ｨ遉ｺ繧堤ｶｭ謖�
+            }
+            Toast.makeText(this,
+                    "[DEBUG] 笘� " + spot.name + " 驕疲�繝輔Λ繧ｰ ON",
+                    Toast.LENGTH_SHORT).show();
+
+            CityInfo city = gameData.findCityById(spot.cityId);
+            if (city != null) {
+                // >>>test_make>>> 騾壼ｸｸ繝√ぉ繝�け繧､繝ｳ縺ｨ蜷後§貍泌�繧貞ｮ溯｡�
+                showSpotCelebration(spot, city);
+                // <<<test_make<<<
+                if (city.checkAndUpdateCompletion()) {
+                    onCityCompleted(city);
+                }
+            }
+            cityAdapter.refreshData(gameData.cities);
+            if (myLat != 0) updateDashboard(gameData.findNearestCity(myLat, myLon));
+        });
+    }
+
+    /** [DEBUG] 蜷肴園縺ｮ驕疲�繝輔Λ繧ｰ繧丹FF�医Μ繧ｻ繝�ヨ�峨☆繧� */
+    private void onDebugSpotReset(String spotId) {
+        SpotInfo spot = gameData.findSpotById(spotId);
+        if (spot == null) return;
+        if (!spot.isVisited) {
+            runOnUiThread(() -> Toast.makeText(this,
+                    "[DEBUG] " + spot.name + " 縺ｯ譛ｪ驕疲�縺ｧ縺�",
+                    Toast.LENGTH_SHORT).show());
+            return;
+        }
+
+        spot.isVisited = false;
+        db.removeVisitedSpot(spotId); // DB 縺九ｉ蜑企勁
+
+        // 謇螻槭☆繧句ｸら伴縺ｮ繧ｳ繝ｳ繝励Μ繝ｼ繝医ヵ繝ｩ繧ｰ繧ゅΜ繧ｻ繝�ヨ
+        CityInfo city = gameData.findCityById(spot.cityId);
+        if (city != null) city.isCompleted = false;
+
+        runOnUiThread(() -> {
+            Marker m = spotMarkers.get(spotId);
+            if (m != null) {
+                m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                        BitmapDescriptorFactory.HUE_AZURE));
+                m.setSnippet(city != null
+                        ? city.name + "  笆ｼ 蜊雁ｾ�300m莉･蜀�〒繝√ぉ繝�け繧､繝ｳ"
+                        : "譛ｪ繝√ぉ繝�け繧､繝ｳ [DEBUG]");
+            }
+            Toast.makeText(this,
+                    "[DEBUG] 笘� " + spot.name + " 驕疲�繝輔Λ繧ｰ OFF�医Μ繧ｻ繝�ヨ��",
+                    Toast.LENGTH_LONG).show();
+            cityAdapter.refreshData(gameData.cities);
+            if (myLat != 0) updateDashboard(gameData.findNearestCity(myLat, myLon));
+        });
+    }
+
+    // >>>test_make>>>
+    /**
+     * [DEBUG] 謗｢邏｢邇�お繝ｪ繧｢10騾｣謇� 竊� 蜈ｨ繝��繧ｿ螳悟�繝ｪ繧ｻ繝�ヨ
+     */
+    private void onDebugFullReset() {
+        // DB 縺ｮ險ｪ蝠乗ｸ医∩繝��繧ｿ繧貞�蜑企勁
+        db.resetAll();
+
+        // in-memory 縺ｮ繧ｲ繝ｼ繝�繝��繧ｿ繧偵Μ繧ｻ繝�ヨ
+        visitedMeshes.clear();
+        completedCityMeshes.clear();
+        completedCityIds.clear();
+        isHeroMode = false;
+
+        // 繝悶�繧ｹ繝医ｂ繝ｪ繧ｻ繝�ヨ
+        boostRadius          = 0f;
+        boostRemainingMeshes = 0;
+        isTreasureVisible    = false;
+
+        // GameData 縺ｮ繧ｹ繝昴ャ繝医�蟶ら伴繝輔Λ繧ｰ繧偵Μ繧ｻ繝�ヨ
+        GameData.resetInstance();
+        gameData = GameData.getInstance();
+
+        // 繝槭�繧ｫ繝ｼ繧貞�縺ｦ豌ｴ濶ｲ�域悴險ｪ蝠擾ｼ峨↓謌ｻ縺�
+        for (CityInfo city : gameData.cities) {
+            for (SpotInfo spot : city.spots) {
+                Marker m = spotMarkers.get(spot.id);
+                if (m != null) {
+                    m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                            BitmapDescriptorFactory.HUE_AZURE));
+                    m.setSnippet(city.name + "  笆ｼ 蜊雁ｾ�300m莉･蜀�〒繝√ぉ繝�け繧､繝ｳ");
+                }
+            }
+        }
+
+        // 髴ｧ繧貞�譛溽憾諷九↓謌ｻ縺�
+        fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+        fogProvider.resetCompletedCityMeshes();
+        fogOverlay.clearTileCache();
+
+        // UI 繧偵Μ繧ｻ繝�ヨ
+        if (layoutTreasureChest != null) layoutTreasureChest.setVisibility(View.GONE);
+        cityAdapter.refreshData(gameData.cities);
+        updateDashboard(gameData.cities.get(0));
+        updateExplorationRateUI();
+        updateBoostStatusUI();
+        if (myLat != 0) updateMyRadiusCircle(myLat, myLon);
+
+        View root = findViewById(R.id.rootLayout);
+        if (root != null) root.setBackgroundColor(
+                getResources().getColor(R.color.bg_normal, null));
+        setTitle("貊玖ｳ髢区挙繝ｩ繝ｪ繝ｼ");
+
+        Toast.makeText(this,
+                "[DEBUG] 蜈ｨ繝��繧ｿ繝ｪ繧ｻ繝�ヨ螳御ｺ�ｼ亥錐謇險ｪ蝠上ヵ繝ｩ繧ｰOFF繝ｻ謗｢邏｢繝槭せ=0��",
+                Toast.LENGTH_LONG).show();
+    }
+    // <<<test_make<<<
+
+    // =========================================================================
+    // 螳晉ｮｱ繧ｷ繧ｹ繝�Β
+    // =========================================================================
+
+    /**
+     * 螳晉ｮｱ繝昴ャ繝励い繝��繧定｡ｨ遉ｺ縺吶ｋ縲�
+     * @param radius 蠖薙◆縺｣縺溷濠蠕�ヶ繝ｼ繧ｹ繝� (400/500/600m)
+     */
+    private void showTreasureChest(int radius) {
+        if (layoutTreasureChest == null) return;
+        isTreasureVisible = true;
+
+        // 蝣ｱ驟ｬ繝�く繧ｹ繝医ｒ繧ｻ繝�ヨ
+        tvChestPrize.setText("謗｢邏｢蜊雁ｾ� " + radius + "m\nﾃ� 50繝槭せ 譛牙柑��");
+
+        // 繝昴ャ繝励い繝��陦ｨ遉ｺ
+        layoutTreasureChest.setVisibility(View.VISIBLE);
+        layoutTreasureChest.setAlpha(0f);
+        layoutTreasureChest.setScaleX(0.3f);
+        layoutTreasureChest.setScaleY(0.3f);
+
+        // 繝舌え繝ｳ繧ｹ逋ｻ蝣ｴ繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ
+        AnimatorSet appear = new AnimatorSet();
+        appear.playTogether(
+                ObjectAnimator.ofFloat(layoutTreasureChest, "alpha",  0f, 1f),
+                ObjectAnimator.ofFloat(layoutTreasureChest, "scaleX", 0.3f, 1.1f, 0.95f, 1.0f),
+                ObjectAnimator.ofFloat(layoutTreasureChest, "scaleY", 0.3f, 1.1f, 0.95f, 1.0f));
+        appear.setDuration(450);
+        appear.setInterpolator(new AccelerateDecelerateInterpolator());
+        appear.start();
+
+        // 縲碁幕縺代ｋ�√阪�繧ｿ繝ｳ 竊� 繝悶�繧ｹ繝磯←逕ｨ縺励※髢峨§繧�
+        btnChestOpen.setOnClickListener(v -> {
+            applyBoost(radius);
+            hideTreasureChest();
+        });
+
+        // 縲瑚ｦ矩√ｋ縲阪�繧ｿ繝ｳ 竊� 菴輔ｂ縺帙★髢峨§繧�
+        btnChestSkip.setOnClickListener(v -> hideTreasureChest());
+    }
+
+    /** 螳晉ｮｱ繝昴ャ繝励い繝��繧帝哩縺倥ｋ */
+    private void hideTreasureChest() {
+        if (layoutTreasureChest == null) return;
+        layoutTreasureChest.animate()
+                .alpha(0f)
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setDuration(250)
+                .withEndAction(() -> {
+                    layoutTreasureChest.setVisibility(View.GONE);
+                    layoutTreasureChest.setScaleX(1f);
+                    layoutTreasureChest.setScaleY(1f);
+                    isTreasureVisible = false;
+                })
+                .start();
+    }
+
+    /**
+     * 繝悶�繧ｹ繝医ｒ驕ｩ逕ｨ縺吶ｋ�井ｸ頑嶌縺搾ｼ峨�
+     * @param radius 繝悶�繧ｹ繝亥濠蠕� (m)
+     */
+    private void applyBoost(int radius) {
+        boostRadius          = (float) radius;
+        boostRemainingMeshes = 50;
+        updateBoostStatusUI();
+        if (myLat != 0) updateMyRadiusCircle(myLat, myLon);
+        Toast.makeText(this,
+                "�噫 謗｢邏｢蜊雁ｾ�′ " + radius + "m 縺ｫ諡｡螟ｧ��ｼ�50繝槭せ譛牙柑��",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    /** 繝悶�繧ｹ繝医せ繝��繧ｿ繧ｹ繝舌リ繝ｼ繧呈峩譁ｰ縺吶ｋ */
+    private void updateBoostStatusUI() {
+        if (tvBoostStatus == null) return;
+        if (boostRemainingMeshes > 0 && boostRadius > 0f) {
+            tvBoostStatus.setText(
+                    "�噫 " + (int)boostRadius + "m 繝悶�繧ｹ繝井ｸｭ (谿�" + boostRemainingMeshes + "繝槭せ)");
+            tvBoostStatus.setVisibility(View.VISIBLE);
+        } else {
+            tvBoostStatus.setVisibility(View.GONE);
+        }
+    }
+
+    // =========================================================================
+    // 鬲皮視縺ｮ髴ｧ繧ｨ繝輔ぉ繧ｯ繝�
+    // =========================================================================
+    private void setupMaouFogEffect() {
+        if (mMap == null) return;
+
+        double[][] layers = {
+            {SHIGA_CENTER.latitude, SHIGA_CENTER.longitude, 120000, 12},
+            {SHIGA_CENTER.latitude, SHIGA_CENTER.longitude,  85000, 20},
+            {SHIGA_CENTER.latitude, SHIGA_CENTER.longitude,  55000, 28},
+            {35.50, 136.25, 30000, 32}, {34.90, 136.00, 25000, 30},
+            {35.28, 135.88, 22000, 28}, {35.10, 136.42, 20000, 26},
+            {35.32, 136.08, 18000, 30},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,  8000, 45},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,  4000, 65},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,  1800, 85},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,   700,110},
+        };
+
+        maouBaseAlphas = new int[layers.length];
+        for (int i = 0; i < layers.length; i++) {
+            maouBaseAlphas[i] = (int) layers[i][3];
+            Circle c = mMap.addCircle(new CircleOptions()
+                    .center(new LatLng(layers[i][0], layers[i][1]))
+                    .radius(layers[i][2]).strokeWidth(0f)
+                    .fillColor(Color.argb(maouBaseAlphas[i], 12, 0, 45))
+                    .zIndex(90));
+            maouFogCircles.add(c);
+        }
+
+        maouFogAnimator = ValueAnimator.ofFloat(0.45f, 1.0f, 0.45f);
+        maouFogAnimator.setDuration(5000);
+        maouFogAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        maouFogAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+        maouFogAnimator.addUpdateListener(anim -> {
+            float s = (float) anim.getAnimatedValue();
+            for (int i = 0; i < maouFogCircles.size(); i++) {
+                int a = Math.min(200, (int)(maouBaseAlphas[i] * s));
+                maouFogCircles.get(i).setFillColor(Color.argb(a, 12, 0, 45));
+            }
+        });
+        maouFogAnimator.start();
+    }
+
+    // =========================================================================
+    // 菴咲ｽｮ諠��ｱ繝代�繝溘ャ繧ｷ繝ｧ繝ｳ
+    // =========================================================================
+    private void requestLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates();
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERM_LOCATION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERM_LOCATION && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates();
+            if (mMap != null) mMap.setMyLocationEnabled(true);
+        } else {
+            Toast.makeText(this,
+                    "菴咲ｽｮ諠��ｱ縺ｮ險ｱ蜿ｯ縺悟ｿ�ｦ√〒縺吶りｨｭ螳壹°繧芽ｨｱ蜿ｯ縺励※縺上□縺輔＞縲�", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void startLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) return;
+        LocationRequest req = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+                .setMinUpdateIntervalMillis(3000).setMinUpdateDistanceMeters(10).build();
+        fusedClient.requestLocationUpdates(req, locationCallback, Looper.getMainLooper());
+        fusedClient.getLastLocation().addOnSuccessListener(loc -> {
+            if (loc != null) onLocationUpdate(loc);
+        });
+    }
+
+    // =========================================================================
+    // 繝�ヰ繝�げ繝ｪ繧ｻ繝�ヨ
+    // =========================================================================
+    private void showResetDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("繝�ヰ繝�げ: 繝��繧ｿ繝ｪ繧ｻ繝�ヨ")
+            .setMessage("蜈ｨ縺ｦ縺ｮ險ｪ蝠丞ｱ･豁ｴ繧貞炎髯､縺励∪縺吶ゅｈ繧阪＠縺�〒縺吶°��")
+            .setPositiveButton("繝ｪ繧ｻ繝�ヨ", (d, w) -> {
+                db.resetAll();
+                visitedMeshes.clear();
+                completedCityMeshes.clear();
+                completedCityIds.clear();
+                isHeroMode = false;
+                boostRadius          = 0f;
+                boostRemainingMeshes = 0;
+                isTreasureVisible    = false;
+                fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+                fogProvider.resetCompletedCityMeshes();
+                fogOverlay.clearTileCache();
+                if (layoutTreasureChest != null) layoutTreasureChest.setVisibility(View.GONE);
+                GameData.resetInstance();
+                gameData = GameData.getInstance();
+                cityAdapter.refreshData(gameData.cities);
+                updateDashboard(gameData.cities.get(0));
+                updateExplorationRateUI();
+                updateBoostStatusUI();
+                if (myLat != 0) updateMyRadiusCircle(myLat, myLon);
+                View root = findViewById(R.id.rootLayout);
+                if (root != null) root.setBackgroundColor(
+                        getResources().getColor(R.color.bg_normal, null));
+                setTitle("貊玖ｳ髢区挙繝ｩ繝ｪ繝ｼ");
+                Toast.makeText(this, "繝��繧ｿ繧偵Μ繧ｻ繝�ヨ縺励∪縺励◆", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("繧ｭ繝｣繝ｳ繧ｻ繝ｫ", null).show();
+    }
+
+    // =========================================================================
+    // 繝ｩ繧､繝輔し繧､繧ｯ繝ｫ
+    // =========================================================================
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) startLocationUpdates();
+        if (maouFogAnimator != null && !maouFogAnimator.isRunning()) maouFogAnimator.start();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (fusedClient != null && locationCallback != null)
+            fusedClient.removeLocationUpdates(locationCallback);
+        if (maouFogAnimator != null) maouFogAnimator.pause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // LocationCallback 縺ｮ遒ｺ螳溘↑隗｣謾ｾ�医Γ繝｢繝ｪ繝ｪ繝ｼ繧ｯ繝ｻ繧ｯ繝ｩ繝�す繝･髦ｲ豁｢��
+        if (fusedClient != null && locationCallback != null) {
+            fusedClient.removeLocationUpdates(locationCallback);
+        }
+        // Handler 縺ｫ貅懊∪縺｣縺滄≦蟒ｶRunnable繧偵☆縺ｹ縺ｦ繧ｭ繝｣繝ｳ繧ｻ繝ｫ�医け繝ｩ繝�す繝･髦ｲ豁｢��
+        cancelDebugHold();
+        // ValueAnimator 縺ｮ蛛懈ｭ｢�医ヰ繝�け繧ｰ繝ｩ繧ｦ繝ｳ繝峨せ繝ｬ繝�ラ縺九ｉ縺ｮUI謫堺ｽ憺亟豁｢��
+        if (maouFogAnimator != null) {
+            maouFogAnimator.cancel();
+            maouFogAnimator = null;
+        }
+    }
+}

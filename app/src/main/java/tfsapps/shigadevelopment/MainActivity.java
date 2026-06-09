@@ -1,0 +1,1165 @@
+package tfsapps.shigadevelopment;
+
+import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.app.ProgressDialog;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.location.Location;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.TileOverlay;
+import com.google.android.gms.maps.model.TileOverlayOptions;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 滋賀開拓ラリー メインアクティビティ（プランB対応版）
+ *
+ * 探索率 = (手動踏破メッシュ数 + コンプリート済み市町の全メッシュ数) / 滋賀全メッシュ数
+ *
+ * 市町コンプリート時の処理（対策C）:
+ *   1. その市町内の手動踏破メッシュを visited_meshes から削除（重複カウント防止）
+ *   2. 市町の全メッシュIDを FogTileProvider に渡して霧を一気解放
+ *   3. city_completion テーブルに記録
+ */
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
+
+    private static final int PERM_LOCATION = 1001;
+
+    // --- Map ---
+    private GoogleMap mMap;
+    private TileOverlay fogOverlay;
+    private FogTileProvider fogProvider;
+
+    // 現在地 125m 緑円 + 300m チェックインリング
+    private Circle myRadiusCircle;
+    private Circle checkinRadiusCircle;
+
+    // スポットマーカー（spotId → Marker）
+    private final Map<String, Marker> spotMarkers = new HashMap<>();
+
+    // >>>test_make>>>
+    // ---- デバッグモード用変数 ----
+    /** markerId → spotId 逆引きマップ（タップ判定に使用） */
+    private final Map<String, String> markerToSpotId = new HashMap<>();
+    /** spotId → 連続タップ回数 */
+    private final Map<String, Integer> debugTapCount = new HashMap<>();
+    /** spotId → 最後にタップした時刻 */
+    private final Map<String, Long> debugLastTapTime = new HashMap<>();
+    private static final int  DEBUG_TAP_THRESHOLD   = 10;    // 10回で達成ON
+    private static final long DEBUG_TAP_WINDOW_MS   = 5000L; // 5秒以内の連続タップ
+    private static final long DEBUG_HOLD_MS         = 10000L;// 10秒ホールドで達成OFF
+    private final Handler  debugHoldHandler  = new Handler(Looper.getMainLooper());
+    private Runnable       debugHoldRunnable = null;
+    private float          debugHoldStartX, debugHoldStartY;
+    private static final float DEBUG_HOLD_SLOP = 40f; // ホールド中の許容移動量(px)
+    /** 探索率エリア連続タップ数（10回で全リセット） */
+    private int  debugExpTapCount   = 0;                  // >>>test_make>>>
+    private long debugExpLastTapMs  = 0L;                 // >>>test_make>>>
+    // <<<test_make<<<
+
+    // 魔王の霧エフェクト
+    private static final LatLng MAOU_CASTLE  = new LatLng(35.4697, 136.1400);
+    private static final LatLng SHIGA_CENTER = new LatLng(35.18,   136.07);
+    private final List<Circle>  maouFogCircles  = new ArrayList<>();
+    private int[]               maouBaseAlphas  = new int[0];
+    private ValueAnimator        maouFogAnimator;
+
+    // --- Location ---
+    private FusedLocationProviderClient fusedClient;
+    private LocationCallback locationCallback;
+    private double myLat = 0, myLon = 0;
+
+    // --- Game ---
+    private GameData    gameData;
+    private DatabaseHelper db;
+    private MeshLookupTable lookupTable;
+
+    // 手動踏破メッシュ（in-memory）
+    private Set<Long>  visitedMeshes      = new HashSet<>();
+    // コンプリート済み市町の全メッシュID（in-memory、霧描画用）
+    private Set<Long>  completedCityMeshes = new HashSet<>();
+    // コンプリート済み市町ID
+    private Set<String> completedCityIds   = new HashSet<>();
+
+    // [プランB] 探索率
+    private int totalShigaMeshCount = 0;
+
+    // --- UI ---
+    private TextView tvCurrentCity;
+    private TextView tvStars;
+    private TextView tvPercent;
+    private ProgressBar pbCity;
+    private RecyclerView rvCities;
+    private CityAdapter cityAdapter;
+    private LinearLayout overlayConquestLayout;
+    private TextView tvConquestTitle;
+    private TextView tvConquestSub;
+    private View confettiView;
+    private TextView tvExplorationRate;    // 地図上の探索率テキスト
+    // スポット到達お祝いポップアップ構成ビュー
+    private android.widget.LinearLayout layoutSpotCelebration;
+    private View     celebFlashView;
+    private TextView tvCelebSpotName;
+    private TextView tvCelebMessage;
+    private TextView tvCelebStars;
+    private TextView tvCelebProgress;
+
+    private boolean isHeroMode = false;
+
+    // =========================================================================
+    // onCreate
+    // =========================================================================
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        db          = DatabaseHelper.getInstance(this);
+        gameData    = GameData.getInstance();
+        lookupTable = MeshLookupTable.getInstance();
+
+        // DB から復元
+        visitedMeshes = db.loadVisitedMeshes();
+        gameData.restoreFromDb(db.loadVisitedSpots());
+
+        // コンプリート済み市町の復元
+        completedCityIds = db.loadCompletedCityIds();
+        for (CityInfo c : gameData.cities) {
+            if (completedCityIds.contains(c.id)) c.isCompleted = true;
+        }
+
+        isHeroMode = db.isHeroEndingAchieved();
+
+        // UI参照
+        tvCurrentCity         = findViewById(R.id.tvCurrentCity);
+        tvStars               = findViewById(R.id.tvStars);
+        tvPercent             = findViewById(R.id.tvPercent);
+        pbCity                = findViewById(R.id.pbCity);
+        rvCities              = findViewById(R.id.rvCities);
+        overlayConquestLayout = findViewById(R.id.overlayConquest);
+        tvConquestTitle       = findViewById(R.id.tvConquestTitle);
+        tvConquestSub         = findViewById(R.id.tvConquestSub);
+        confettiView          = findViewById(R.id.confettiView);
+        tvExplorationRate      = findViewById(R.id.tvExplorationRate);
+        layoutSpotCelebration  = findViewById(R.id.layoutSpotCelebration);
+        celebFlashView         = findViewById(R.id.celebFlashView);
+        tvCelebSpotName        = findViewById(R.id.tvCelebSpotName);
+        tvCelebMessage         = findViewById(R.id.tvCelebMessage);
+        tvCelebStars           = findViewById(R.id.tvCelebStars);
+        tvCelebProgress        = findViewById(R.id.tvCelebProgress);
+
+        // >>>test_make>>>
+        // 探索率エリアを10回連続タップ → 全データリセット（開発者デバッグ用）
+        tvExplorationRate.setOnClickListener(v -> {
+            long now = System.currentTimeMillis();
+            if (now - debugExpLastTapMs > DEBUG_TAP_WINDOW_MS) {
+                debugExpTapCount = 1;
+            } else {
+                debugExpTapCount++;
+            }
+            debugExpLastTapMs = now;
+            if (debugExpTapCount >= DEBUG_TAP_THRESHOLD) {
+                debugExpTapCount = 0;
+                onDebugFullReset();
+            }
+        });
+        // <<<test_make<<<
+
+        // RecyclerView
+        cityAdapter = new CityAdapter(this, gameData.cities);
+        rvCities.setLayoutManager(new LinearLayoutManager(this));
+        rvCities.setAdapter(cityAdapter);
+        rvCities.setNestedScrollingEnabled(false);
+
+        // >>>test_make>>>
+        // 開拓日誌リスト: 市町カード10連続タップ → その市町の4スポット全達成
+        cityAdapter.setDebugCityAchieveListener(cityId -> {
+            CityInfo city = gameData.findCityById(cityId);
+            if (city == null) return;
+            if (city.isCompleted) {
+                Toast.makeText(this,
+                        "[DEBUG] " + city.name + " は既にコンプリート済みです",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // 未達成のスポットを順番に達成フラグONにする
+            for (SpotInfo spot : city.spots) {
+                if (!spot.isVisited) {
+                    onDebugSpotAchieve(spot.id);
+                }
+            }
+        });
+        // <<<test_make<<<
+
+        // ソートボタン
+        Button btnSortDistance = findViewById(R.id.btnSortDistance);
+        Button btnSortProgress = findViewById(R.id.btnSortProgress);
+        btnSortDistance.setOnClickListener(v ->
+                cityAdapter.setSortMode(CityAdapter.SortMode.BY_DISTANCE));
+        btnSortProgress.setOnClickListener(v ->
+                cityAdapter.setSortMode(CityAdapter.SortMode.BY_PROGRESS));
+        btnSortDistance.setOnLongClickListener(v -> { showResetDialog(); return true; });
+
+        if (isHeroMode) applyHeroTheme();
+
+        // ズームボタン
+        Button btnZoomIn  = findViewById(R.id.btnZoomIn);
+        Button btnZoomOut = findViewById(R.id.btnZoomOut);
+        btnZoomIn.setOnClickListener(v -> {
+            if (mMap != null) mMap.animateCamera(CameraUpdateFactory.zoomIn());
+        });
+        btnZoomOut.setOnClickListener(v -> {
+            if (mMap != null) mMap.animateCamera(CameraUpdateFactory.zoomOut());
+        });
+
+        // 地図初期化
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getSupportFragmentManager()
+                        .findFragmentById(R.id.mapFragment);
+        if (mapFragment != null) mapFragment.getMapAsync(this);
+
+        // 位置情報
+        fusedClient = LocationServices.getFusedLocationProviderClient(this);
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult result) {
+                Location loc = result.getLastLocation();
+                if (loc != null) onLocationUpdate(loc);
+            }
+        };
+
+        // [プランB] ルックアップテーブルの準備
+        initializeLookupTable();
+        requestLocationPermission();
+    }
+
+    // =========================================================================
+    // [プランB] ルックアップテーブル初期化
+    // =========================================================================
+    private void initializeLookupTable() {
+        if (MeshLookupTable.isAlreadyGenerated(this) && !db.isMeshLookupEmpty()) {
+            // 2回目以降: SQLite から高速ロード
+            new Thread(() -> {
+                lookupTable.loadFromDb(db);
+                loadCompletedCityMeshesFromDb();
+                totalShigaMeshCount = lookupTable.getTotalShigaMeshCount();
+                runOnUiThread(this::updateExplorationRateUI);
+            }).start();
+        } else {
+            // 初回: 生成ダイアログを表示してバックグラウンドで生成
+            showLookupGenerationDialog();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void showLookupGenerationDialog() {
+        ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setTitle("初回セットアップ");
+        dialog.setMessage("滋賀県のメッシュデータを生成中...\n（初回のみ、約2〜5秒かかります）");
+        dialog.setCancelable(false);
+        dialog.show();
+
+        lookupTable.generateAsync(this, db, () -> {
+            // 完了後に UI スレッドで実行
+            loadCompletedCityMeshesFromDb();
+            totalShigaMeshCount = lookupTable.getTotalShigaMeshCount();
+            updateExplorationRateUI();
+            dialog.dismiss();
+            Toast.makeText(this,
+                "メッシュデータ生成完了！\n滋賀全体 " + totalShigaMeshCount + " マス",
+                Toast.LENGTH_LONG).show();
+        });
+    }
+
+    /** 既コンプリート済み市町のメッシュIDをDBから読み込んでメモリに展開 */
+    private void loadCompletedCityMeshesFromDb() {
+        completedCityMeshes.clear();
+        for (String cityId : completedCityIds) {
+            completedCityMeshes.addAll(db.getMeshIdsForCity(cityId));
+        }
+    }
+
+    // =========================================================================
+    // onMapReady
+    // =========================================================================
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        mMap = googleMap;
+
+        mMap.getUiSettings().setZoomGesturesEnabled(true);
+        mMap.getUiSettings().setScrollGesturesEnabled(true);
+        mMap.getUiSettings().setRotateGesturesEnabled(true);
+        mMap.getUiSettings().setTiltGesturesEnabled(false);
+        mMap.getUiSettings().setZoomControlsEnabled(false);
+
+        LatLng shigaCenter = new LatLng(35.18, 136.07);
+        mMap.moveCamera(CameraUpdateFactory.newCameraPosition(
+                new CameraPosition.Builder().target(shigaCenter).zoom(9.5f).build()));
+
+        // 霧プロバイダー（プランB版：全メッシュIDセットを渡す）
+        fogProvider = new FogTileProvider(visitedMeshes, completedCityMeshes);
+        fogOverlay  = mMap.addTileOverlay(new TileOverlayOptions()
+                .tileProvider(fogProvider).zIndex(100));
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            mMap.setMyLocationEnabled(true);
+        }
+
+        setupMaouFogEffect();
+        addSpotMarkersToMap();
+        // >>>test_make>>>
+        setupDebugInteractions(); // デバッグモード: タップ達成・ホールドリセット
+        // <<<test_make<<<
+    }
+
+    // =========================================================================
+    // 位置情報更新
+    // =========================================================================
+    private void onLocationUpdate(Location loc) {
+        myLat = loc.getLatitude();
+        myLon  = loc.getLongitude();
+
+        long meshId = MeshCalculator.calcMeshId(myLat, myLon);
+
+        // 滋賀県内のメッシュのみ記録する（県外の移動はカウントしない）
+        // mesh_city_lookup に存在するメッシュ = 滋賀県内
+        if (!db.isMeshLookupEmpty() && db.isMeshInShiga(meshId)) {
+            boolean newMesh = db.addVisitedMesh(meshId);
+            if (newMesh) {
+                visitedMeshes.add(meshId);
+                fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+                fogOverlay.clearTileCache();
+                updateExplorationRateUI();
+
+                // >>>test_make_takara>>>
+                // ---- 宝箱発生確率 ----
+                // ★本番リリース前にテスト行を削除し、本番行のコメントを外すこと★
+                // float takaraChance = 0.01f + (float)(Math.random() * 0.04f); // 本番: 1%〜5%
+                float takaraChance = 0.30f + (float)(Math.random() * 0.20f);   // テスト: 30%〜50%
+                // <<<test_make_takara<<<
+                if (Math.random() < takaraChance) {
+                    // 報酬半径をランダムに決定（400 / 500 / 600m）
+                    int[] radii = {400, 500, 600};
+                    int reward = radii[(int)(Math.random() * radii.length)];
+                    runOnUiThread(() -> Toast.makeText(this,
+                            "🎁 宝箱発見！探索半径 " + reward + "m ブースト！",
+                            Toast.LENGTH_LONG).show());
+                }
+            }
+        }
+
+        CityInfo nearestCity = gameData.findNearestCity(myLat, myLon);
+        updateDashboard(nearestCity);
+        checkSpotCheckins();
+        cityAdapter.setMyLocation(myLat, myLon);
+        runOnUiThread(() -> updateMyRadiusCircle(myLat, myLon));
+    }
+
+    // =========================================================================
+    // スポット チェックイン判定
+    // =========================================================================
+    private void checkSpotCheckins() {
+        for (CityInfo city : gameData.cities) {
+            if (city.isCompleted) continue;
+            for (SpotInfo spot : city.spots) {
+                if (spot.isVisited) continue;
+                if (!spot.isInRange(myLat, myLon)) continue;
+
+                spot.isVisited = true;
+                db.addVisitedSpot(spot.id);
+
+                runOnUiThread(() -> {
+                    Marker m = spotMarkers.get(spot.id);
+                    if (m != null) {
+                        m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_YELLOW));
+                        m.setSnippet("✓ チェックイン済");
+                    }
+                });
+
+                Toast.makeText(this,
+                        "📍 " + spot.name + " にチェックイン！", Toast.LENGTH_SHORT).show();
+
+                // スポット単体の到達エフェクト
+                showSpotCelebration(spot, city);
+
+                if (city.checkAndUpdateCompletion()) {
+                    onCityCompleted(city);
+                }
+                cityAdapter.refreshData(gameData.cities);
+            }
+        }
+    }
+
+    // =========================================================================
+    // [プランB] 市町100%達成時の処理（対策C）
+    // =========================================================================
+    private void onCityCompleted(CityInfo city) {
+        completedCityIds.add(city.id);
+
+        // バックグラウンドで重い処理を行う
+        new Thread(() -> {
+            // ① 対策C: その市町内の手動メッシュを visited_meshes から削除
+            db.deleteVisitedMeshesForCity(city.id);
+
+            // ② その市町の全メッシュIDを取得（DB from mesh_city_lookup）
+            Set<Long> cityMeshIds = db.getMeshIdsForCity(city.id);
+            int cityMeshCount = cityMeshIds.size();
+
+            // ③ コンプリート記録
+            db.markCityCompleted(city.id, cityMeshCount);
+
+            // ④ in-memory の visitedMeshes からも除去（対策C）
+            //    完了した市町のメッシュは completedCityMeshes で管理する
+            visitedMeshes.removeAll(cityMeshIds);
+            completedCityMeshes.addAll(cityMeshIds);
+
+            // ⑤ 霧プロバイダーを更新（霧を一気解放）
+            fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+            fogProvider.addCompletedCityMeshes(cityMeshIds);
+
+            // Activity が破棄済みの場合はUI操作をスキップ（クラッシュ防止）
+            if (isFinishing() || isDestroyed()) return;
+
+            runOnUiThread(() -> {
+                // UIスレッドでも再確認（クラッシュ防止）
+                if (isFinishing() || isDestroyed()) return;
+
+                fogOverlay.clearTileCache();
+                updateExplorationRateUI();
+
+                // 演出
+                Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (vib != null && vib.hasVibrator()) {
+                    long[] pattern = {0, 200, 100, 200, 100, 300};
+                    vib.vibrate(VibrationEffect.createWaveform(pattern, -1));
+                }
+                showConquestOverlay(
+                        "【" + city.name + " 制覇！】",
+                        "称号：" + city.name + "の開拓者 をアンロック！\n"
+                        + "+" + cityMeshCount + " マス解放！");
+
+                if (gameData.isAllCitiesCompleted()) {
+                    new Handler(Looper.getMainLooper()).postDelayed(this::onGrandEnding, 3500);
+                }
+            });
+        }).start();
+    }
+
+    // =========================================================================
+    // [プランB] 探索率UIの更新
+    // =========================================================================
+    private void updateExplorationRateUI() {
+        if (tvExplorationRate == null || totalShigaMeshCount == 0) return;
+
+        // 手動踏破 + コンプリート済み市町の合計
+        int exploredCount = visitedMeshes.size() + completedCityMeshes.size();
+        float rate = (float) exploredCount / totalShigaMeshCount * 100f;
+
+        String text = String.format("探索済 %.1f%%  (%,d / %,d マス)",
+                rate, exploredCount, totalShigaMeshCount);
+        tvExplorationRate.setText(text);
+    }
+
+    // =========================================================================
+    // スポット到達 お祝いエフェクト（チェックイン達成時の演出）
+    //
+    // 演出シーケンス:
+    //   [0ms]    金色フラッシュ（画面全体が一瞬光る）
+    //   [0ms]    お祝いバイブレーション（短-短-長のリズム）
+    //   [100ms]  ポップアップがバウンスしながら登場
+    //   [700ms]  星マークが1回脈動
+    //   [3500ms] フェードアウトして消える
+    // =========================================================================
+    private void showSpotCelebration(SpotInfo spot, CityInfo city) {
+        runOnUiThread(() -> {
+            if (layoutSpotCelebration == null) return;
+
+            int visitedCount = city.getVisitedCount();
+            int totalCount   = city.spots.size();
+
+            // ── コンテンツをセット ──────────────────────────────────────
+            tvCelebSpotName.setText(spot.name);
+            tvCelebMessage.setText("チェックイン達成！");
+            tvCelebStars.setText(buildStarLine(visitedCount, totalCount));
+            tvCelebProgress.setText(city.name + "  " + visitedCount + " / " + totalCount + " スポット");
+
+            // ── ① お祝いバイブレーション（短-短-長） ───────────────────
+            Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vib != null && vib.hasVibrator()) {
+                long[] pattern    = {0, 80, 50, 80, 50, 250};
+                int[]  amplitudes = {0, 180, 0, 200, 0, 255};
+                vib.vibrate(VibrationEffect.createWaveform(pattern, amplitudes, -1));
+            }
+
+            // ── ② 金色フラッシュ（瞬間光） ─────────────────────────────
+            if (celebFlashView != null) {
+                celebFlashView.setAlpha(0.85f);
+                celebFlashView.setVisibility(View.VISIBLE);
+                celebFlashView.animate()
+                        .alpha(0f)
+                        .setDuration(350)
+                        .withEndAction(() -> celebFlashView.setVisibility(View.GONE))
+                        .start();
+            }
+
+            // ── ③ ポップアップ バウンス登場（100ms後から開始） ──────────
+            layoutSpotCelebration.setVisibility(View.VISIBLE);
+            layoutSpotCelebration.setAlpha(0f);
+            layoutSpotCelebration.setScaleX(0.2f);
+            layoutSpotCelebration.setScaleY(0.2f);
+
+            // バウンスキーフレーム（0.2 → 1.15 → 0.92 → 1.04 → 1.0）
+            android.animation.Keyframe kf0 = android.animation.Keyframe.ofFloat(0f,    0.2f);
+            android.animation.Keyframe kf1 = android.animation.Keyframe.ofFloat(0.55f, 1.15f);
+            android.animation.Keyframe kf2 = android.animation.Keyframe.ofFloat(0.75f, 0.92f);
+            android.animation.Keyframe kf3 = android.animation.Keyframe.ofFloat(0.90f, 1.04f);
+            android.animation.Keyframe kf4 = android.animation.Keyframe.ofFloat(1.0f,  1.00f);
+
+            android.animation.PropertyValuesHolder pvhX =
+                    android.animation.PropertyValuesHolder.ofKeyframe("scaleX", kf0, kf1, kf2, kf3, kf4);
+            android.animation.PropertyValuesHolder pvhY =
+                    android.animation.PropertyValuesHolder.ofKeyframe("scaleY", kf0, kf1, kf2, kf3, kf4);
+
+            ObjectAnimator bounceAnim = ObjectAnimator.ofPropertyValuesHolder(
+                    layoutSpotCelebration, pvhX, pvhY);
+            bounceAnim.setDuration(500);
+
+            ObjectAnimator fadeIn = ObjectAnimator.ofFloat(
+                    layoutSpotCelebration, "alpha", 0f, 1f);
+            fadeIn.setDuration(200);
+
+            AnimatorSet appear = new AnimatorSet();
+            appear.playTogether(bounceAnim, fadeIn);
+            appear.setStartDelay(100);
+            appear.addListener(new AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(Animator a) {
+                    // ── ④ 星マーク脈動（1回）────────────────────────────
+                    if (tvCelebStars != null) {
+                        AnimatorSet pulse = new AnimatorSet();
+                        pulse.playTogether(
+                                ObjectAnimator.ofFloat(tvCelebStars, "scaleX", 1f, 1.4f, 1f),
+                                ObjectAnimator.ofFloat(tvCelebStars, "scaleY", 1f, 1.4f, 1f));
+                        pulse.setDuration(400);
+                        pulse.setInterpolator(new AccelerateDecelerateInterpolator());
+                        pulse.start();
+                    }
+
+                    // ── ⑤ 3秒後にフェードアウト消去 ─────────────────────
+                    new Handler(Looper.getMainLooper()).postDelayed(() ->
+                        layoutSpotCelebration.animate()
+                                .alpha(0f)
+                                .scaleX(0.85f)
+                                .scaleY(0.85f)
+                                .setDuration(400)
+                                .withEndAction(() -> {
+                                    layoutSpotCelebration.setVisibility(View.GONE);
+                                    layoutSpotCelebration.setScaleX(1f);
+                                    layoutSpotCelebration.setScaleY(1f);
+                                })
+                                .start(),
+                    3000);
+                }
+            });
+            appear.start();
+        });
+    }
+
+    private String buildStarLine(int visited, int total) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) sb.append(i < visited ? "★" : "☆");
+        return sb.toString();
+    }
+
+    // =========================================================================
+    // ダッシュボード更新
+    // =========================================================================
+    private void updateDashboard(CityInfo city) {
+        if (city == null) return;
+        runOnUiThread(() -> {
+            tvCurrentCity.setText("現在地：" + city.name);
+            int visited = city.getVisitedCount();
+            int total   = city.spots.size();
+            int pct     = city.getProgressPercent();
+            StringBuilder stars = new StringBuilder();
+            for (int i = 0; i < total; i++) stars.append(i < visited ? "★" : "☆");
+            tvStars.setText(stars);
+            tvPercent.setText(visited + "/" + total);
+            pbCity.setProgress(pct);
+        });
+    }
+
+    // =========================================================================
+    // グランドエンディング
+    // =========================================================================
+    private void onGrandEnding() {
+        db.setHeroEndingAchieved();
+        isHeroMode = true;
+        applyHeroTheme();
+        showConquestOverlay(
+                "★ 滋賀を救った英雄 ★",
+                "全19市町を制覇！\nあなたは伝説の開拓者となった！");
+        Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (vib != null && vib.hasVibrator()) {
+            long[] pattern = {0, 500, 100, 500, 100, 500, 100, 1000};
+            vib.vibrate(VibrationEffect.createWaveform(pattern, -1));
+        }
+    }
+
+    // =========================================================================
+    // 制覇ポップアップ
+    // =========================================================================
+    private void showConquestOverlay(String title, String subtitle) {
+        runOnUiThread(() -> {
+            tvConquestTitle.setText(title);
+            tvConquestSub.setText(subtitle);
+            overlayConquestLayout.setVisibility(View.VISIBLE);
+            overlayConquestLayout.setAlpha(0f);
+            overlayConquestLayout.setScaleX(0.5f);
+            overlayConquestLayout.setScaleY(0.5f);
+
+            AnimatorSet anim = new AnimatorSet();
+            anim.playTogether(
+                    ObjectAnimator.ofFloat(overlayConquestLayout, "alpha",  0f, 1f),
+                    ObjectAnimator.ofFloat(overlayConquestLayout, "scaleX", 0.5f, 1f),
+                    ObjectAnimator.ofFloat(overlayConquestLayout, "scaleY", 0.5f, 1f));
+            anim.setDuration(500);
+            anim.setInterpolator(new AccelerateDecelerateInterpolator());
+            anim.start();
+
+            if (confettiView != null) {
+                confettiView.setVisibility(View.VISIBLE);
+                ValueAnimator blink = ValueAnimator.ofFloat(0f, 1f, 0.3f, 1f, 0.3f, 1f, 0f);
+                blink.setDuration(3500);
+                blink.addUpdateListener(a -> confettiView.setAlpha((Float) a.getAnimatedValue()));
+                blink.addListener(new AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(Animator a) {
+                        if (confettiView != null) confettiView.setVisibility(View.GONE);
+                    }
+                });
+                blink.start();
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(() ->
+                    runOnUiThread(this::hideConquestOverlay), 5000);
+            overlayConquestLayout.setOnClickListener(v -> hideConquestOverlay());
+        });
+    }
+
+    private void hideConquestOverlay() {
+        if (overlayConquestLayout.getVisibility() != View.VISIBLE) return;
+        AnimatorSet anim = new AnimatorSet();
+        anim.playTogether(
+                ObjectAnimator.ofFloat(overlayConquestLayout, "alpha", 1f, 0f),
+                ObjectAnimator.ofFloat(overlayConquestLayout, "scaleY", 1f, 0.8f));
+        anim.setDuration(300);
+        anim.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator a) {
+                overlayConquestLayout.setVisibility(View.GONE);
+            }
+        });
+        anim.start();
+    }
+
+    // =========================================================================
+    // 英雄テーマ
+    // =========================================================================
+    private void applyHeroTheme() {
+        View root = findViewById(R.id.rootLayout);
+        if (root != null) root.setBackgroundColor(getResources().getColor(R.color.hero_bg, null));
+        setTitle("★ 滋賀開拓ラリー ～英雄版～ ★");
+    }
+
+    // =========================================================================
+    // 現在地 125m 緑円 + 300m チェックインリング
+    // =========================================================================
+    private void updateMyRadiusCircle(double lat, double lon) {
+        if (mMap == null) return;
+        LatLng pos = new LatLng(lat, lon);
+        if (myRadiusCircle == null) {
+            myRadiusCircle = mMap.addCircle(new CircleOptions()
+                    .center(pos).radius(125)
+                    .strokeWidth(4f)
+                    .strokeColor(Color.argb(220, 0, 230, 80))
+                    .fillColor(Color.argb(25, 0, 255, 80))
+                    .zIndex(200));
+        } else { myRadiusCircle.setCenter(pos); }
+
+        if (checkinRadiusCircle == null) {
+            checkinRadiusCircle = mMap.addCircle(new CircleOptions()
+                    .center(pos).radius(300)
+                    .strokeWidth(2f)
+                    .strokeColor(Color.argb(140, 100, 200, 255))
+                    .fillColor(Color.argb(8, 100, 200, 255))
+                    .zIndex(199));
+        } else { checkinRadiusCircle.setCenter(pos); }
+    }
+
+    // =========================================================================
+    // 名所スポット ▼ マーカー
+    // =========================================================================
+    private void addSpotMarkersToMap() {
+        if (mMap == null) return;
+        for (CityInfo city : gameData.cities) {
+            for (SpotInfo spot : city.spots) {
+                float hue = spot.isVisited
+                        ? BitmapDescriptorFactory.HUE_YELLOW
+                        : BitmapDescriptorFactory.HUE_AZURE;
+                String snippet = spot.isVisited ? "✓ チェックイン済"
+                        : city.name + "  ▼ 半径300m以内でチェックイン";
+                Marker marker = mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(spot.lat, spot.lon))
+                        .title(spot.name).snippet(snippet)
+                        .icon(BitmapDescriptorFactory.defaultMarker(hue))
+                        .zIndex(150));
+                if (marker != null) {
+                    spotMarkers.put(spot.id, marker);
+                    // >>>test_make>>>
+                    markerToSpotId.put(marker.getId(), spot.id); // デバッグ用逆引き
+                    // <<<test_make<<<
+                }
+            }
+        }
+    }
+
+    // >>>test_make>>>
+    // =========================================================================
+    // デバッグモード: 10連続タップ → 達成ON / 10秒ホールド → 達成OFF
+    // =========================================================================
+    private void setupDebugInteractions() {
+        if (mMap == null) return;
+
+        // ---- 10連続タップ → 達成フラグON ----
+        mMap.setOnMarkerClickListener(marker -> {
+            String spotId = markerToSpotId.get(marker.getId());
+            if (spotId == null) return false; // スポット以外のマーカー
+
+            long now  = System.currentTimeMillis();
+            Long last = debugLastTapTime.get(spotId);
+            // 前回タップから DEBUG_TAP_WINDOW_MS 以内なら継続カウント、超えたらリセット
+            int count = (last != null && (now - last) < DEBUG_TAP_WINDOW_MS)
+                    ? debugTapCount.getOrDefault(spotId, 0) + 1
+                    : 1;
+            debugTapCount.put(spotId, count);
+            debugLastTapTime.put(spotId, now);
+
+            // >>>test_make>>>
+            // マーカー表示はユーザーモードのまま変更しない（DEBUG表示は出さない）
+            // <<<test_make<<<
+
+            if (count >= DEBUG_TAP_THRESHOLD) {
+                debugTapCount.put(spotId, 0);
+                onDebugSpotAchieve(spotId); // 達成フラグON
+            }
+            return false; // >>>test_make>>> false=通常のマーカー動作（infoWindow表示）を維持 <<<test_make<<<
+        });
+
+        // ---- 10秒ホールド → 達成フラグOFF ----
+        // マップビューのタッチリスナーで ACTION_DOWN 時にタイマー開始、
+        // 指を離したら (ACTION_UP/CANCEL) または大きく動かしたらキャンセル
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getSupportFragmentManager()
+                        .findFragmentById(R.id.mapFragment);
+        View mapView = (mapFragment != null) ? mapFragment.getView() : null;
+        if (mapView != null) {
+            mapView.setOnTouchListener((v, event) -> {
+                switch (event.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        debugHoldStartX = event.getX();
+                        debugHoldStartY = event.getY();
+                        startDebugHoldTimer(event.getX(), event.getY());
+                        break;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        // 指が DEBUG_HOLD_SLOP 以上動いたらキャンセル
+                        if (Math.abs(event.getX() - debugHoldStartX) > DEBUG_HOLD_SLOP ||
+                            Math.abs(event.getY() - debugHoldStartY) > DEBUG_HOLD_SLOP) {
+                            cancelDebugHold();
+                        }
+                        break;
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        cancelDebugHold();
+                        break;
+                }
+                return false; // false = マップにイベントを流す
+            });
+        }
+    }
+
+    /** ホールドタイマーをスタート（10秒後に最近傍スポットをリセット） */
+    private void startDebugHoldTimer(float screenX, float screenY) {
+        cancelDebugHold();
+        debugHoldRunnable = () -> {
+            if (mMap == null) return;
+            // 画面座標 → LatLng に変換してスポットを探す
+            android.graphics.Point pt =
+                    new android.graphics.Point((int) screenX, (int) screenY);
+            LatLng latLng = mMap.getProjection().fromScreenLocation(pt);
+            SpotInfo target = findNearestSpotToLatLng(latLng, 0.006); // 約600m以内
+            if (target != null) {
+                onDebugSpotReset(target.id);
+            } else {
+                runOnUiThread(() -> Toast.makeText(this,
+                        "[DEBUG] 近くにスポットが見つかりません", Toast.LENGTH_SHORT).show());
+            }
+        };
+        debugHoldHandler.postDelayed(debugHoldRunnable, DEBUG_HOLD_MS);
+    }
+
+    /** ホールドタイマーをキャンセル */
+    private void cancelDebugHold() {
+        if (debugHoldRunnable != null) {
+            debugHoldHandler.removeCallbacks(debugHoldRunnable);
+            debugHoldRunnable = null;
+        }
+    }
+
+    /** LatLng から指定距離(度)以内の最近傍スポットを返す */
+    private SpotInfo findNearestSpotToLatLng(LatLng latLng, double thresholdDeg) {
+        SpotInfo nearest = null;
+        double minDist = thresholdDeg;
+        for (CityInfo city : gameData.cities) {
+            for (SpotInfo spot : city.spots) {
+                double dist = Math.hypot(
+                        spot.lat - latLng.latitude,
+                        spot.lon - latLng.longitude);
+                if (dist < minDist) { minDist = dist; nearest = spot; }
+            }
+        }
+        return nearest;
+    }
+
+    /** [DEBUG] 名所の達成フラグをONにする */
+    private void onDebugSpotAchieve(String spotId) {
+        SpotInfo spot = gameData.findSpotById(spotId);
+        if (spot == null) return;
+        if (spot.isVisited) {
+            Toast.makeText(this,
+                    "[DEBUG] " + spot.name + " は既に達成済みです",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        spot.isVisited = true;
+        db.addVisitedSpot(spotId);
+
+        runOnUiThread(() -> {
+            Marker m = spotMarkers.get(spotId);
+            if (m != null) {
+                m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                        BitmapDescriptorFactory.HUE_YELLOW));
+                m.setSnippet("✓ チェックイン済"); // >>>test_make>>> ユーザーモード表示を維持
+            }
+            Toast.makeText(this,
+                    "[DEBUG] ★ " + spot.name + " 達成フラグ ON",
+                    Toast.LENGTH_SHORT).show();
+
+            CityInfo city = gameData.findCityById(spot.cityId);
+            if (city != null) {
+                // >>>test_make>>> 通常チェックインと同じ演出を実行
+                showSpotCelebration(spot, city);
+                // <<<test_make<<<
+                if (city.checkAndUpdateCompletion()) {
+                    onCityCompleted(city);
+                }
+            }
+            cityAdapter.refreshData(gameData.cities);
+            if (myLat != 0) updateDashboard(gameData.findNearestCity(myLat, myLon));
+        });
+    }
+
+    /** [DEBUG] 名所の達成フラグをOFF（リセット）する */
+    private void onDebugSpotReset(String spotId) {
+        SpotInfo spot = gameData.findSpotById(spotId);
+        if (spot == null) return;
+        if (!spot.isVisited) {
+            runOnUiThread(() -> Toast.makeText(this,
+                    "[DEBUG] " + spot.name + " は未達成です",
+                    Toast.LENGTH_SHORT).show());
+            return;
+        }
+
+        spot.isVisited = false;
+        db.removeVisitedSpot(spotId); // DB から削除
+
+        // 所属する市町のコンプリートフラグもリセット
+        CityInfo city = gameData.findCityById(spot.cityId);
+        if (city != null) city.isCompleted = false;
+
+        runOnUiThread(() -> {
+            Marker m = spotMarkers.get(spotId);
+            if (m != null) {
+                m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                        BitmapDescriptorFactory.HUE_AZURE));
+                m.setSnippet(city != null
+                        ? city.name + "  ▼ 半径300m以内でチェックイン"
+                        : "未チェックイン [DEBUG]");
+            }
+            Toast.makeText(this,
+                    "[DEBUG] ☆ " + spot.name + " 達成フラグ OFF（リセット）",
+                    Toast.LENGTH_LONG).show();
+            cityAdapter.refreshData(gameData.cities);
+            if (myLat != 0) updateDashboard(gameData.findNearestCity(myLat, myLon));
+        });
+    }
+
+    // >>>test_make>>>
+    /**
+     * [DEBUG] 探索率エリア10連打 → 全データ完全リセット
+     * 名所訪問フラグOFF・探索マス=0・市町コンプリートOFF・霧を初期状態に戻す
+     */
+    private void onDebugFullReset() {
+        // DB の訪問済みデータを全削除
+        db.resetAll();
+
+        // in-memory のゲームデータをリセット
+        visitedMeshes.clear();
+        completedCityMeshes.clear();
+        completedCityIds.clear();
+        isHeroMode = false;
+
+        // GameData のスポット・市町フラグをリセット
+        GameData.resetInstance();
+        gameData = GameData.getInstance();
+
+        // マーカーを全て水色（未訪問）に戻す
+        for (CityInfo city : gameData.cities) {
+            for (SpotInfo spot : city.spots) {
+                Marker m = spotMarkers.get(spot.id);
+                if (m != null) {
+                    m.setIcon(BitmapDescriptorFactory.defaultMarker(
+                            BitmapDescriptorFactory.HUE_AZURE));
+                    m.setSnippet(city.name + "  ▼ 半径300m以内でチェックイン");
+                }
+            }
+        }
+
+        // 霧を初期状態に戻す
+        fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+        fogProvider.resetCompletedCityMeshes();
+        fogOverlay.clearTileCache();
+
+        // UI をリセット
+        cityAdapter.refreshData(gameData.cities);
+        updateDashboard(gameData.cities.get(0));
+        updateExplorationRateUI();
+
+        View root = findViewById(R.id.rootLayout);
+        if (root != null) root.setBackgroundColor(
+                getResources().getColor(R.color.bg_normal, null));
+        setTitle("滋賀開拓ラリー");
+
+        Toast.makeText(this,
+                "[DEBUG] 全データリセット完了（名所訪問フラグOFF・探索マス=0）",
+                Toast.LENGTH_LONG).show();
+    }
+    // <<<test_make<<<
+
+    // =========================================================================
+    // 魔王の霧エフェクト
+    // =========================================================================
+    private void setupMaouFogEffect() {
+        if (mMap == null) return;
+
+        double[][] layers = {
+            {SHIGA_CENTER.latitude, SHIGA_CENTER.longitude, 120000, 12},
+            {SHIGA_CENTER.latitude, SHIGA_CENTER.longitude,  85000, 20},
+            {SHIGA_CENTER.latitude, SHIGA_CENTER.longitude,  55000, 28},
+            {35.50, 136.25, 30000, 32}, {34.90, 136.00, 25000, 30},
+            {35.28, 135.88, 22000, 28}, {35.10, 136.42, 20000, 26},
+            {35.32, 136.08, 18000, 30},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,  8000, 45},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,  4000, 65},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,  1800, 85},
+            {MAOU_CASTLE.latitude, MAOU_CASTLE.longitude,   700,110},
+        };
+
+        maouBaseAlphas = new int[layers.length];
+        for (int i = 0; i < layers.length; i++) {
+            maouBaseAlphas[i] = (int) layers[i][3];
+            Circle c = mMap.addCircle(new CircleOptions()
+                    .center(new LatLng(layers[i][0], layers[i][1]))
+                    .radius(layers[i][2]).strokeWidth(0f)
+                    .fillColor(Color.argb(maouBaseAlphas[i], 12, 0, 45))
+                    .zIndex(90));
+            maouFogCircles.add(c);
+        }
+
+        maouFogAnimator = ValueAnimator.ofFloat(0.45f, 1.0f, 0.45f);
+        maouFogAnimator.setDuration(5000);
+        maouFogAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        maouFogAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+        maouFogAnimator.addUpdateListener(anim -> {
+            float s = (float) anim.getAnimatedValue();
+            for (int i = 0; i < maouFogCircles.size(); i++) {
+                int a = Math.min(200, (int)(maouBaseAlphas[i] * s));
+                maouFogCircles.get(i).setFillColor(Color.argb(a, 12, 0, 45));
+            }
+        });
+        maouFogAnimator.start();
+    }
+
+    // =========================================================================
+    // 位置情報パーミッション
+    // =========================================================================
+    private void requestLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates();
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERM_LOCATION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERM_LOCATION && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates();
+            if (mMap != null) mMap.setMyLocationEnabled(true);
+        } else {
+            Toast.makeText(this,
+                    "位置情報の許可が必要です。設定から許可してください。", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void startLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) return;
+        LocationRequest req = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+                .setMinUpdateIntervalMillis(3000).setMinUpdateDistanceMeters(10).build();
+        fusedClient.requestLocationUpdates(req, locationCallback, Looper.getMainLooper());
+        fusedClient.getLastLocation().addOnSuccessListener(loc -> {
+            if (loc != null) onLocationUpdate(loc);
+        });
+    }
+
+    // =========================================================================
+    // デバッグリセット
+    // =========================================================================
+    private void showResetDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("デバッグ: データリセット")
+            .setMessage("全ての訪問履歴を削除します。よろしいですか？")
+            .setPositiveButton("リセット", (d, w) -> {
+                db.resetAll();
+                visitedMeshes.clear();
+                completedCityMeshes.clear();
+                completedCityIds.clear();
+                isHeroMode = false;
+                fogProvider.updateSelfWalkedMeshes(visitedMeshes);
+                fogProvider.resetCompletedCityMeshes();
+                fogOverlay.clearTileCache();
+                GameData.resetInstance();
+                gameData = GameData.getInstance();
+                cityAdapter.refreshData(gameData.cities);
+                updateDashboard(gameData.cities.get(0));
+                updateExplorationRateUI();
+                View root = findViewById(R.id.rootLayout);
+                if (root != null) root.setBackgroundColor(
+                        getResources().getColor(R.color.bg_normal, null));
+                setTitle("滋賀開拓ラリー");
+                Toast.makeText(this, "データをリセットしました", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("キャンセル", null).show();
+    }
+
+    // =========================================================================
+    // ライフサイクル
+    // =========================================================================
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) startLocationUpdates();
+        if (maouFogAnimator != null && !maouFogAnimator.isRunning()) maouFogAnimator.start();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (fusedClient != null && locationCallback != null)
+            fusedClient.removeLocationUpdates(locationCallback);
+        if (maouFogAnimator != null) maouFogAnimator.pause();
+    }
+
+    // =========================================================================
+    // ③ クラッシュ対策: onDestroy でリソースを確実に解放
+    // =========================================================================
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // LocationCallback の確実な解放
+        // （onPause で解除済みだが、システムが onPause をスキップするケースに備えて二重解除）
+        if (fusedClient != null && locationCallback != null) {
+            fusedClient.removeLocationUpdates(locationCallback);
+            locationCallback = null;
+        }
+
+        // debugHoldHandler に溜まった遅延 Runnable をすべてキャンセル
+        // （Handler が Activity の参照を保持し続けることによるリークを防止）
+        if (debugHoldRunnable != null) {
+            debugHoldHandler.removeCallbacks(debugHoldRunnable);
+            debugHoldRunnable = null;
+        }
+        debugHoldHandler.removeCallbacksAndMessages(null);
+
+        // ValueAnimator（魔王の霧）を停止・解放
+        // （INFINITE アニメーションが Activity 破棄後も動き続けるとリークになる）
+        if (maouFogAnimator != null) {
+            maouFogAnimator.cancel();
+            maouFogAnimator = null;
+        }
+    }
+}

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 宝箱ポップアップの背景（茶色×ゴールドボーダー） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 影レイヤー -->
+    <item
+        android:left="4dp"
+        android:top="4dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#80000000" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+
+    <!-- 背景本体 -->
+    <item
+        android:bottom="4dp"
+        android:right="4dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#1C0E00" />
+            <stroke
+                android:width="3dp"
+                android:color="#CD853F" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+
+</layer-list>
