@@ -1252,12 +1252,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             maouFogCircles.add(c);
         }
 
+        // OOM対策: setFillColor() は Google Maps への IPC 通信を伴うため
+        // 毎フレーム（60fps）呼ぶとメモリが枯渇する。
+        // 前回更新からアニメーション値が 0.025 以上変化したときだけ更新することで
+        // 呼び出し頻度を約 1/6 に抑える（5秒サイクルで約40回→約7回に削減）。
+        final float[] lastFogScale = {-1f};
         maouFogAnimator = ValueAnimator.ofFloat(0.45f, 1.0f, 0.45f);
         maouFogAnimator.setDuration(5000);
         maouFogAnimator.setRepeatCount(ValueAnimator.INFINITE);
         maouFogAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
         maouFogAnimator.addUpdateListener(anim -> {
             float s = (float) anim.getAnimatedValue();
+            // 変化量がしきい値未満なら IPC を発行しない（OOM 対策）
+            if (Math.abs(s - lastFogScale[0]) < 0.025f) return;
+            lastFogScale[0] = s;
             for (int i = 0; i < maouFogCircles.size(); i++) {
                 int a = Math.min(200, (int)(maouBaseAlphas[i] * s));
                 maouFogCircles.get(i).setFillColor(Color.argb(a, 12, 0, 45));
