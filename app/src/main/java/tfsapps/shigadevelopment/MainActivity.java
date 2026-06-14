@@ -13,11 +13,14 @@ import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -170,6 +173,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean isHeroMode = false;
 
+    // ── 画面ロック機能 ──────────────────────────────────────────────────────────
+    /** ロック中かどうか */
+    private boolean isScreenLocked = false;
+    /** WakeLock: スリープ防止・GPS継続取得用 */
+    private PowerManager.WakeLock wakeLock;
+    /** ロックオーバーレイ本体 */
+    private FrameLayout lockOverlay;
+    /** 長押し進捗バー */
+    private View unlockProgressFill;
+    /** 長押し中かどうか */
+    private boolean isUnlockHolding = false;
+    /** 長押し完了までの時間（ms） */
+    private static final long UNLOCK_HOLD_MS = 3000L;
+    /** 長押し進捗アニメーター */
+    private ValueAnimator unlockAnimator;
+    /** ロックボタン */
+    private Button btnScreenLock;
+
     // =========================================================================
     // onCreate
     // =========================================================================
@@ -219,6 +240,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         tvChestEffectDesc      = findViewById(R.id.tvChestEffectDesc);
         btnChestOpen           = findViewById(R.id.btnChestOpen);
         btnChestSkip           = findViewById(R.id.btnChestSkip);
+        // 画面ロックUI
+        lockOverlay            = findViewById(R.id.lockOverlay);
+        unlockProgressFill     = findViewById(R.id.unlockProgressFill);
+        btnScreenLock          = findViewById(R.id.btnScreenLock);
+        setupScreenLock();
 
         // >>>test_make>>>
         // 探索率エリアを10回連続タップ → 全データリセット（開発者デバッグ用）
@@ -923,6 +949,136 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     // =========================================================================
+    // 画面ロック機能
+    // =========================================================================
+
+    /**
+     * 画面ロックの初期設定。
+     * ロックボタンクリックでロックON、オーバーレイ上の長押し(3秒)で解除。
+     */
+    private void setupScreenLock() {
+        if (btnScreenLock == null || lockOverlay == null) return;
+
+        // ロックボタン：クリックでロックON
+        btnScreenLock.setOnClickListener(v -> enableScreenLock());
+
+        // ロックオーバーレイ：長押しで解除（タッチ以外の操作は全て無効化）
+        View btnUnlock = lockOverlay.findViewById(R.id.btnUnlock);
+        if (btnUnlock != null) {
+            btnUnlock.setOnTouchListener((v, event) -> {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startUnlockHold();
+                        break;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        cancelUnlockHold();
+                        break;
+                }
+                return true;
+            });
+        }
+
+        // ロックオーバーレイ自体のタッチを消費（誤操作防止）
+        lockOverlay.setOnTouchListener((v, event) -> true);
+    }
+
+    /** 画面ロックを有効化する */
+    private void enableScreenLock() {
+        if (isScreenLocked) return;
+        isScreenLocked = true;
+
+        // WakeLock 取得：スリープさせずGPSを継続取得
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null && wakeLock == null) {
+            wakeLock = pm.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "ShigaRally::ExploreWakeLock"
+            );
+            wakeLock.acquire(12 * 60 * 60 * 1000L); // 最大12時間
+        }
+
+        // ロックボタンアイコンを施錠マークに変更
+        if (btnScreenLock != null) btnScreenLock.setText("\uD83D\uDD12");
+
+        // オーバーレイをフェードインで表示
+        lockOverlay.setAlpha(0f);
+        lockOverlay.setVisibility(View.VISIBLE);
+        lockOverlay.animate().alpha(1f).setDuration(400).start();
+
+        Toast.makeText(this, "\uD83D\uDD12 画面ロック有効：GPS・探索は継続します", Toast.LENGTH_SHORT).show();
+    }
+
+    /** 画面ロックを解除する */
+    private void disableScreenLock() {
+        if (!isScreenLocked) return;
+        isScreenLocked = false;
+
+        // WakeLock 解放
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+            wakeLock = null;
+        }
+
+        // ボタンアイコンを開錠マークに戻す
+        if (btnScreenLock != null) btnScreenLock.setText("\uD83D\uDD13");
+
+        // オーバーレイをフェードアウトで非表示
+        lockOverlay.animate().alpha(0f).setDuration(300).withEndAction(() ->
+            lockOverlay.setVisibility(View.GONE)).start();
+
+        Toast.makeText(this, "\uD83D\uDD13 画面ロック解除", Toast.LENGTH_SHORT).show();
+    }
+
+    /** 長押し解除開始 */
+    private void startUnlockHold() {
+        if (isUnlockHolding) return;
+        isUnlockHolding = true;
+
+        // 進捗バーを幅0にリセット
+        if (unlockProgressFill != null) {
+            unlockProgressFill.getLayoutParams().width = 0;
+            unlockProgressFill.requestLayout();
+        }
+
+        unlockAnimator = ValueAnimator.ofFloat(0f, 1f);
+        unlockAnimator.setDuration(UNLOCK_HOLD_MS);
+        unlockAnimator.addUpdateListener(anim -> {
+            if (unlockProgressFill == null) return;
+            float fraction = (float) anim.getAnimatedValue();
+            View parent = (View) unlockProgressFill.getParent();
+            int parentWidth = (parent != null) ? parent.getWidth() : 540;
+            unlockProgressFill.getLayoutParams().width = (int)(parentWidth * fraction);
+            unlockProgressFill.requestLayout();
+        });
+        unlockAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (isUnlockHolding) {
+                    isUnlockHolding = false;
+                    disableScreenLock();
+                }
+            }
+        });
+        unlockAnimator.start();
+    }
+
+    /** 長押し解除キャンセル */
+    private void cancelUnlockHold() {
+        if (!isUnlockHolding) return;
+        isUnlockHolding = false;
+        if (unlockAnimator != null) {
+            unlockAnimator.cancel();
+            unlockAnimator = null;
+        }
+        // 進捗バーをリセット
+        if (unlockProgressFill != null) {
+            unlockProgressFill.getLayoutParams().width = 0;
+            unlockProgressFill.requestLayout();
+        }
+    }
+
+    // =========================================================================
     // 現在地 125m 緑円 + チェックインリング（ブースト対応）
     // =========================================================================
     private void updateMyRadiusCircle(double lat, double lon) {
@@ -1389,6 +1545,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (maouFogAnimator != null) {
             maouFogAnimator.cancel();
             maouFogAnimator = null;
+        }
+
+        // 画面ロック WakeLock の解放（リーク防止）
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+            wakeLock = null;
         }
     }
 }

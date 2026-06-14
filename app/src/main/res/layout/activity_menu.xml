@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_normal">
+
+    <!-- 背景：琵琶湖モチーフの波紋グラデーション -->
+    <View
+        android:id="@+id/menuBgGlow"
+        android:layout_width="600dp"
+        android:layout_height="600dp"
+        android:layout_gravity="center"
+        android:background="@drawable/menu_bg_glow" />
+
+    <!-- メインコンテンツ -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
+
+        <!-- アプリタイトルエリア -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginBottom="12dp">
+
+            <!-- メインタイトル -->
+            <TextView
+                android:id="@+id/tvMenuTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="滋賀開拓ラリー"
+                android:textSize="38sp"
+                android:textStyle="bold"
+                android:textColor="#FFD700"
+                android:letterSpacing="0.05"
+                android:shadowColor="#CC000000"
+                android:shadowDx="2"
+                android:shadowDy="3"
+                android:shadowRadius="8"
+                android:gravity="center" />
+
+            <!-- サブタイトル -->
+            <TextView
+                android:id="@+id/tvMenuSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="〜 滋賀を歩いて制覇せよ！ 〜"
+                android:textSize="16sp"
+                android:textColor="#B0C4DE"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:letterSpacing="0.03" />
+
+        </LinearLayout>
+
+        <!-- 区切り線 -->
+        <View
+            android:layout_width="200dp"
+            android:layout_height="1dp"
+            android:background="#334D6B"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="32dp" />
+
+        <!-- バージョン＆キャッチコピー -->
+        <TextView
+            android:id="@+id/tvMenuCatch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🏯  全19市町・76ヶ所の名所を制覇しよう  🏯"
+            android:textSize="13sp"
+            android:textColor="#7BA3C8"
+            android:gravity="center"
+            android:layout_marginBottom="48dp" />
+
+        <!-- 探索ボタン -->
+        <LinearLayout
+            android:id="@+id/btnExplore"
+            android:layout_width="260dp"
+            android:layout_height="64dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/menu_btn_explore"
+            android:layout_marginBottom="20dp"
+            android:elevation="8dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🗺"
+                android:textSize="24sp"
+                android:layout_marginEnd="10dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="探　索"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#1A1A2E"
+                android:letterSpacing="0.15" />
+
+        </LinearLayout>
+
+        <!-- ヘルプボタン -->
+        <LinearLayout
+            android:id="@+id/btnHelp"
+            android:layout_width="260dp"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/menu_btn_help"
+            android:elevation="6dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📖"
+                android:textSize="20sp"
+                android:layout_marginEnd="10dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ヘルプ"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#E0E0E0"
+                android:letterSpacing="0.1" />
+
+        </LinearLayout>
+
+        <!-- フッター -->
+        <TextView
+            android:id="@+id/tvMenuFooter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="道路交通法を守って安全に楽しもう"
+            android:textSize="11sp"
+            android:textColor="#556678"
+            android:gravity="center"
+            android:layout_marginTop="48dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 探索ボタン背景：ゴールドグラデーション＋角丸 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="135"
+                android:startColor="#FFB300"
+                android:endColor="#F57F17" />
+            <corners android:radius="32dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="135"
+                android:startColor="#FFD700"
+                android:endColor="#FFA000" />
+            <corners android:radius="32dp" />
+            <stroke android:width="2dp" android:color="#FFF9C4" />
+        </shape>
+    </item>
+</selector>

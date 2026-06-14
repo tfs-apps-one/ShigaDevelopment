@@ -154,7 +154,7 @@
 
             </LinearLayout>
 
-            <!-- ズームボタン（地図右下に重ねて表示） -->
+            <!-- ズームボタン + ロックボタン（地図右下に重ねて表示） -->
             <LinearLayout
                 android:layout_width="44dp"
                 android:layout_height="wrap_content"
@@ -163,6 +163,24 @@
                 android:orientation="vertical"
                 android:background="#CC1A1A2E"
                 android:elevation="4dp">
+
+                <!-- ロックボタン -->
+                <Button
+                    android:id="@+id/btnScreenLock"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:text="🔓"
+                    android:textSize="18sp"
+                    android:padding="0dp"
+                    android:background="@android:color/transparent"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    style="@style/Widget.AppCompat.Button.Borderless" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#44FFFFFF" />
 
                 <Button
                     android:id="@+id/btnZoomIn"
@@ -589,6 +607,88 @@
         </LinearLayout>
 
     </LinearLayout>
+    <!-- ===================================================================
+         画面ロックオーバーレイ（ロック中のみ表示）
+         半透明の暗幕 + 長押し解除ガイド
+         =================================================================== -->
+    <FrameLayout
+        android:id="@+id/lockOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#B3000000"
+        android:elevation="50dp"
+        android:visibility="gone">
+
+        <!-- 解除ガイドテキスト（中央） -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔒"
+                android:textSize="56sp"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="画面ロック中"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#E0E0E0"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GPS・探索は継続中です"
+                android:textSize="14sp"
+                android:textColor="#80C8FF"
+                android:layout_marginBottom="24dp" />
+
+            <!-- 長押し解除ボタン -->
+            <FrameLayout
+                android:id="@+id/btnUnlock"
+                android:layout_width="180dp"
+                android:layout_height="56dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <!-- 背景（進捗バーとして機能） -->
+                <View
+                    android:id="@+id/unlockProgressBg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#33FFFFFF" />
+
+                <!-- 進捗フィル（長押し中に伸びる） -->
+                <View
+                    android:id="@+id/unlockProgressFill"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:background="#6642A5F5" />
+
+                <!-- ラベル -->
+                <TextView
+                    android:id="@+id/tvUnlockLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="長押しで解除"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#E0E0E0" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+    </FrameLayout>
 
 </FrameLayout>
 

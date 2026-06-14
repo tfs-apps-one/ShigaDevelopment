@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_normal">
+
+    <!-- ヘッダーバー -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp"
+        android:background="@color/dashboard_bg"
+        android:elevation="4dp">
+
+        <!-- 戻るボタン -->
+        <LinearLayout
+            android:id="@+id/btnHelpBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◀"
+                android:textSize="20sp"
+                android:textColor="#64B5F6" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="遊び方ガイド"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#E0E0E0"
+            android:gravity="center"
+            android:layout_marginEnd="48dp" />
+
+    </LinearLayout>
+
+    <!-- スクロール可能なコンテンツ -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- タイトル -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚔  探索モードの遊び方"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#FFD700"
+                android:gravity="center"
+                android:layout_marginBottom="20dp"
+                android:layout_marginTop="8dp" />
+
+            <!-- セクション①：基本ルール -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/help_card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🗾"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="滋賀を探索しよう"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#64B5F6" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="・プレイヤーが移動するたびに滋賀県内を探索して、霧を晴らしていきます。\n・歩いたルートは地図上に緑色で記録されます。"
+                    android:textSize="14sp"
+                    android:textColor="#C8D8E8"
+                    android:lineSpacingMultiplier="1.6" />
+
+            </LinearLayout>
+
+            <!-- セクション②：市町と名所 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/help_card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🏯"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="市町と名所"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#64B5F6" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="・滋賀県内には全部で 19の市町 があります。\n・各市町にはそれぞれ 4つの名所 があります。\n・名所に近づくと自動でチェックインされます。\n・市町の4つの名所をすべて訪問すると、その市町が 解放（制覇） されます！"
+                    android:textSize="14sp"
+                    android:textColor="#C8D8E8"
+                    android:lineSpacingMultiplier="1.6" />
+
+            </LinearLayout>
+
+            <!-- セクション③：探索エリア -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/help_card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📍"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="探索エリア"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#64B5F6" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="#1A2A3A"
+                    android:padding="12dp"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="通常"
+                        android:textSize="13sp"
+                        android:textColor="#9E9E9E"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="半径 300m"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#42A5F5" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="#1A2A00"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ブースト時"
+                        android:textSize="13sp"
+                        android:textColor="#9E9E9E"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="最大 600m"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="#80FF80" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- セクション④：宝箱とブースト -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/help_card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📦"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="宝箱とブースト"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#64B5F6" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="・探索を進めると 宝箱 が出現することがあります。\n・宝箱を開けると 探索半径のブースト（400〜600m）を獲得！\n・ブーストは新しいマスを30マス踏むまで有効です。\n・ブースト中はチェックイン範囲も広がるため、名所に近づきやすくなります。"
+                    android:textSize="14sp"
+                    android:textColor="#C8D8E8"
+                    android:lineSpacingMultiplier="1.6" />
+
+            </LinearLayout>
+
+            <!-- セクション⑤：足跡 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/help_card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🌿"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="足跡の記録"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#64B5F6" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="#0D1F0D"
+                    android:padding="12dp">
+
+                    <View
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:background="#7850C864"
+                        android:layout_marginEnd="12dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="自分が歩いたところは緑色で表示されます"
+                        android:textSize="13sp"
+                        android:textColor="#A0C8A0" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- セクション⑥：注意事項 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#2A1010"
+                android:padding="16dp"
+                android:layout_marginBottom="8dp">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚠️"
+                        android:textSize="18sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ご利用にあたって"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="#FF7043" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="・道路交通法を守った上で本アプリをご使用ください。\n\n・歩行中・運転中の操作は危険です。必ず安全を確保してからご使用ください。\n\n・プレイ中の損害・事故に関して、作者は一切の責任を負いません。"
+                    android:textSize="13sp"
+                    android:textColor="#C8A090"
+                    android:lineSpacingMultiplier="1.5" />
+
+            </LinearLayout>
+
+            <!-- 下部スペース -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="16dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>
