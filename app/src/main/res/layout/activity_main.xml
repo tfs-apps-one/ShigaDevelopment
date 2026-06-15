@@ -585,8 +585,8 @@
                 android:layout_height="48dp"
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
-                android:text="🎉 開ける！"
-                android:textSize="15sp"
+                android:text="開ける"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#1A1A1A"
                 android:backgroundTint="@color/treasure_prize"
@@ -600,7 +600,7 @@
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:text="見送る"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="#AAAAAA"
                 style="@style/Widget.AppCompat.Button.Borderless" />
 

@@ -554,31 +554,30 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     // =========================================================================
-    // [プランB] 市町100%達成時の処理（対策C）
+    // [プランB] 市町100%達成時の処理
     // =========================================================================
     private void onCityCompleted(CityInfo city) {
         completedCityIds.add(city.id);
 
         // バックグラウンドで重い処理を行う
         new Thread(() -> {
-            // ① 対策C: その市町内の手動メッシュを visited_meshes から削除
-            db.deleteVisitedMeshesForCity(city.id);
-
-            // ② その市町の全メッシュIDを取得（DB from mesh_city_lookup）
+            // ① その市町の全メッシュIDを取得（DB from mesh_city_lookup）
             Set<Long> cityMeshIds = db.getMeshIdsForCity(city.id);
             int cityMeshCount = cityMeshIds.size();
 
-            // ③ コンプリート記録
+            // ② コンプリート記録
             db.markCityCompleted(city.id, cityMeshCount);
 
-            // ④ in-memory の visitedMeshes からも除去（対策C）
-            //    完了した市町のメッシュは completedCityMeshes で管理する
-            visitedMeshes.removeAll(cityMeshIds);
-            completedCityMeshes.addAll(cityMeshIds);
+            // ③ completedCityMeshes には「まだ自分が歩いていないマス」だけを追加する。
+            //    歩済みのマスは visitedMeshes に残したまま → 緑マスが消えないようにする。
+            //    ※ 二重カウント防止のため addAll 前に visitedMeshes との差分を取る。
+            Set<Long> newCityMeshes = new HashSet<>(cityMeshIds);
+            newCityMeshes.removeAll(visitedMeshes); // 自分が歩いたマスは除く
+            completedCityMeshes.addAll(newCityMeshes);
 
-            // ⑤ 霧プロバイダーを更新（霧を一気解放）
-            fogProvider.updateSelfWalkedMeshes(visitedMeshes);
-            fogProvider.addCompletedCityMeshes(cityMeshIds);
+            // ④ 霧プロバイダーを更新（霧を一気解放）
+            //    selfWalkedMeshes は変更なし（緑マス維持）
+            fogProvider.addCompletedCityMeshes(newCityMeshes);
 
             // Activity が破棄済みの場合はUI操作をスキップ（クラッシュ防止）
             if (isFinishing() || isDestroyed()) return;
