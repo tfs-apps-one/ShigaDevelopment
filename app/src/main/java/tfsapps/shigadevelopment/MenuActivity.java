@@ -43,7 +43,14 @@ public class MenuActivity extends AppCompatActivity {
         // ボタンクリックリスナー
         btnExplore.setOnClickListener(v -> {
             animateButton(v, () -> {
-                Intent intent = new Intent(MenuActivity.this, MainActivity.class);
+                // プロローグ未表示ならストーリー画面へ、表示済みなら直接地図画面へ
+                DatabaseHelper db = DatabaseHelper.getInstance(MenuActivity.this);
+                Intent intent;
+                if (!db.isPrologueShown()) {
+                    intent = new Intent(MenuActivity.this, StoryPrologueActivity.class);
+                } else {
+                    intent = new Intent(MenuActivity.this, MainActivity.class);
+                }
                 startActivity(intent);
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
             });

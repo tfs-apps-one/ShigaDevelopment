@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  しがのあさぼらけ — ストーリープロローグ画面
+  背景：深い紫の夜霧（ディープパープル・ミスト）
+  テキストが段階的にフェードインして世界観を紹介する
+  ★ 文字可読性改善：各テキストブロックに濃い半透明パネルを追加
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/prologueRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0D0015"
+    android:fitsSystemWindows="false">
+
+    <!-- ===================================================================
+         背景：深宇宙グラデーション（基底レイヤー）
+         =================================================================== -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/prologue_bg_gradient" />
+
+    <!-- ===================================================================
+         パーティクルレイヤー（アニメーション対象・透明）
+         =================================================================== -->
+    <View
+        android:id="@+id/prologueParticleLayer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/prologue_starfield" />
+
+    <!-- ===================================================================
+         霧オーバーレイ（紫のおやすみ霧 — alpha でパルスアニメーション）
+         =================================================================== -->
+    <View
+        android:id="@+id/prologueFogOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/prologue_fog_overlay"
+        android:alpha="0.7" />
+
+    <!-- ===================================================================
+         コンテンツ（スクロール対応）
+         =================================================================== -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingTop="72dp"
+            android:paddingBottom="40dp"
+            android:paddingHorizontal="20dp">
+
+            <!-- ── タイトルエリア（濃い半透明パネル） ───────────────── -->
+            <LinearLayout
+                android:id="@+id/tvPrologueShrineEmoji"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="#DD0D0015"
+                android:paddingTop="20dp"
+                android:paddingBottom="16dp"
+                android:paddingHorizontal="16dp"
+                android:layout_marginBottom="16dp"
+                android:alpha="0">
+
+                <!-- ⛩️ 紋章絵文字 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⛩️"
+                    android:textSize="48sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- メインタイトル -->
+                <TextView
+                    android:id="@+id/tvPrologueTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="しがのあさぼらけ"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFD700"
+                    android:gravity="center"
+                    android:letterSpacing="0.12"
+                    android:layout_marginBottom="4dp"
+                    android:shadowColor="#FF9900CC"
+                    android:shadowDx="0"
+                    android:shadowDy="0"
+                    android:shadowRadius="12" />
+
+                <!-- 副タイトル -->
+                <TextView
+                    android:id="@+id/tvPrologueSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="〜神さまたちの夜更かしと緑の道標〜"
+                    android:textSize="13sp"
+                    android:textColor="#DDCC88FF"
+                    android:gravity="center"
+                    android:letterSpacing="0.06" />
+
+            </LinearLayout>
+
+            <!-- ── 上部区切り線 ──────────────────────────────────────── -->
+            <View
+                android:id="@+id/prologueDividerTop"
+                android:layout_width="160dp"
+                android:layout_height="1dp"
+                android:background="#66FFD700"
+                android:layout_marginBottom="16dp"
+                android:alpha="0" />
+
+            <!-- ── テキスト①（濃いパネル背景） ──────────────────────── -->
+            <TextView
+                android:id="@+id/tvPrologueText1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="滋賀県には、古くからそれぞれの土地を守る\nたくさんの「神さまたち」が暮らしています。"
+                android:textSize="15sp"
+                android:textColor="#FFFFFFFF"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.7"
+                android:background="#CC0D0015"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp"
+                android:alpha="0" />
+
+            <!-- ── テキスト②（濃いパネル背景） ──────────────────────── -->
+            <TextView
+                android:id="@+id/tvPrologueText2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ある日、神さまたちは琵琶湖のほとりに集まって、\n時間を忘れて楽しいお祭りを始めてしまいました。\n\n神さまたちが夜更かしを続けているせいで、\n滋賀県はいつまでも\n「おやすみの紫の夜霧」\nに包まれてしまったのです……"
+                android:textSize="15sp"
+                android:textColor="#FFFFFFFF"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.7"
+                android:background="#CC0D0015"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp"
+                android:alpha="0" />
+
+            <!-- ── 夜の絵文字 ────────────────────────────────────────── -->
+            <TextView
+                android:id="@+id/tvPrologueNightEmoji"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌌 🌃 🌌"
+                android:textSize="34sp"
+                android:layout_marginBottom="12dp"
+                android:alpha="0" />
+
+            <!-- ── テキスト③（濃いパネル背景） ──────────────────────── -->
+            <TextView
+                android:id="@+id/tvPrologueText3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="街は静まりかえり、\nみんな深いお布団のなかに隠れたまま……。"
+                android:textSize="15sp"
+                android:textColor="#FFFFFFFF"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.7"
+                android:background="#CC0D0015"
+                android:padding="16dp"
+                android:layout_marginBottom="20dp"
+                android:alpha="0" />
+
+            <!-- ── 区切り線 ──────────────────────────────────────────── -->
+            <View
+                android:id="@+id/prologueDivider"
+                android:layout_width="180dp"
+                android:layout_height="1dp"
+                android:background="#6640C864"
+                android:layout_marginBottom="20dp"
+                android:alpha="0" />
+
+            <!-- ── ミッションテキスト（緑カード） ──────────────────────── -->
+            <LinearLayout
+                android:id="@+id/layoutMission"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/prologue_mission_card_bg"
+                android:padding="20dp"
+                android:layout_marginBottom="36dp"
+                android:gravity="center"
+                android:alpha="0">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🌿  あなたの使命  🌿"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#80FF80"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="神さまたちに「もう朝ですよ！」とお知らせして、\nいつもの爽やかな朝の光を\n滋賀県に取り戻せるのは、\n\n元気に旅をする\nあなただけです！"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.7" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#3350C864"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- 3ステップ説明 -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🟣  歩いていない場所は「おやすみの紫の夜霧」が覆っています&#10;🟢  あなたが歩くと「みずみずしい新緑の足跡」に変わります&#10;🌅  市町の4拠点をすべて訪れると、神さまが目を覚まします！"
+                    android:textSize="12sp"
+                    android:textColor="#DDEEDD"
+                    android:lineSpacingMultiplier="1.8"
+                    android:gravity="start" />
+
+            </LinearLayout>
+
+            <!-- ── 「旅を始める」ボタン ──────────────────────────────── -->
+            <Button
+                android:id="@+id/btnStartJourney"
+                android:layout_width="240dp"
+                android:layout_height="56dp"
+                android:text="🌅  旅を始める"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#1A0030"
+                android:backgroundTint="#FFD700"
+                android:layout_marginBottom="16dp"
+                android:elevation="8dp"
+                android:visibility="invisible"
+                style="@style/Widget.AppCompat.Button" />
+
+            <!-- ── スキップボタン ─────────────────────────────────────── -->
+            <Button
+                android:id="@+id/btnSkipPrologue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="スキップ"
+                android:textSize="13sp"
+                android:textColor="#AAAAAA"
+                android:background="@android:color/transparent"
+                android:alpha="0"
+                android:visibility="invisible"
+                style="@style/Widget.AppCompat.Button.Borderless" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</FrameLayout>

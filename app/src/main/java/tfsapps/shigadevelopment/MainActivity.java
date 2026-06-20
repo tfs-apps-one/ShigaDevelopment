@@ -7,6 +7,7 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -176,8 +177,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     // ── 画面ロック機能 ──────────────────────────────────────────────────────────
     /** ロック中かどうか */
     private boolean isScreenLocked = false;
-    /** WakeLock: スリープ防止・GPS継続取得用 */
+    /** WakeLock: 画面ロック中のスリープ防止・GPS継続用 */
     private PowerManager.WakeLock wakeLock;
+    /** WakeLock: 探索モード中の画面点灯維持用（常時取得） */
+    private PowerManager.WakeLock exploreWakeLock;
     /** ロックオーバーレイ本体 */
     private FrameLayout lockOverlay;
     /** 長押し進捗バー */
@@ -329,6 +332,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // [プランB] ルックアップテーブルの準備
         initializeLookupTable();
         requestLocationPermission();
+
+        // ── 探索モード中は画面を常にONに保つ（システムのスリープ調整を無効化）──
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
     // =========================================================================
@@ -452,8 +458,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // >>>test_make_takara>>>
                 // ---- 宝箱発生確率 ----
                 // ★本番リリース前にテスト行を削除し、本番行のコメントを外すこと★
-                // float takaraChance = 0.01f + (float)(Math.random() * 0.04f); // 本番: 1%〜5%
-                float takaraChance = 0.10f + (float)(Math.random() * 0.20f);   // テスト: 30%〜50%
+                 float takaraChance = 0.03f + (float)(Math.random() * 0.04f); // 本番: 3%〜7%
+                //float takaraChance = 0.10f + (float)(Math.random() * 0.20f);   // テスト: 30%〜50%
                 // <<<test_make_takara<<<
                 if (Math.random() < takaraChance && !isTreasureVisible) {
                     int[] radii = {400, 500, 600};
@@ -756,15 +762,32 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void onGrandEnding() {
         db.setHeroEndingAchieved();
         isHeroMode = true;
-        applyHeroTheme();
-        showConquestOverlay(
-                "★ 滋賀を救った英雄 ★",
-                "全19市町を制覇！\nあなたは伝説の開拓者となった！");
+
+        // ── ① 琵琶湖含む全エリアの霧を完全解放 ──────────────────────
+        if (fogProvider != null) {
+            fogProvider.clearAllFog();
+        }
+        if (fogOverlay != null) {
+            fogOverlay.clearTileCache();
+        }
+
+        // ── ② 英雄テーマを適用 ───────────────────────────────────────
+        runOnUiThread(this::applyHeroTheme);
+
+        // ── ③ バイブレーション（達成の喜び） ─────────────────────────
         Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
         if (vib != null && vib.hasVibrator()) {
             long[] pattern = {0, 500, 100, 500, 100, 500, 100, 1000};
             vib.vibrate(VibrationEffect.createWaveform(pattern, -1));
         }
+
+        // ── ④ 少し間を置いてからエンディング画面へ遷移 ───────────────
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            Intent intent = new Intent(MainActivity.this, StoryEpilogueActivity.class);
+            startActivity(intent);
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        }, 1500);
     }
 
     // =========================================================================
@@ -1550,6 +1573,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
             wakeLock = null;
+        }
+
+        // 探索モード用 WakeLock の解放
+        if (exploreWakeLock != null && exploreWakeLock.isHeld()) {
+            exploreWakeLock.release();
+            exploreWakeLock = null;
         }
     }
 }

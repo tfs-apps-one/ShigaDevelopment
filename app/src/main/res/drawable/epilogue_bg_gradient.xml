@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- エンディング背景グラデーション：夜明けの黒から黄金の朝焼けへ -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:type="linear"
+        android:angle="270"
+        android:startColor="#1A0800"
+        android:centerColor="#3D1A00"
+        android:endColor="#7A3500" />
+</shape>

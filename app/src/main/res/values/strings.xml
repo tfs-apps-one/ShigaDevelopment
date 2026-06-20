@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">滋賀開拓ラリー</string>
+    <string name="app_name">ビワイチ滋賀ラリー</string>
     <string name="app_title_hero">★ 滋賀開拓ラリー ～英雄版～ ★</string>
     <string name="location_required">位置情報の許可が必要です。設定から許可してください。</string>
     <string name="checkin_format">📍 %1$s にチェックイン！</string>

@@ -38,14 +38,17 @@ public class FogTileProvider implements TileProvider {
     private static final int TILE_SIZE = 256;
     private static final int FOG_COLOR = Color.argb(180, 0, 0, 30);
 
-    // 自分の足で踏んだマスの色（薄い緑・半透明）
-    private static final int FOOTPRINT_COLOR = Color.argb(120, 80, 200, 80);
+    // 自分の足で踏んだマスの色（薄い緑・半透明）— alpha を下げるほど薄くなる（55 ≒ 22%）
+    private static final int FOOTPRINT_COLOR = Color.argb(55, 80, 200, 80);
 
     // 自分の足で踏んだメッシュ（緑表示）
     private volatile Set<Long> selfWalkedMeshes;
 
     // コンプリート済み市町の全メッシュIDセット（完全クリア表示）
     private volatile Set<Long> completedCityMeshes;
+
+    // 全制覇時：琵琶湖含む全エリアの霧を完全解放するフラグ
+    private volatile boolean allFogCleared = false;
 
     private final Paint fogPaint;
     private final Paint footprintPaint;  // 薄い緑
@@ -86,6 +89,15 @@ public class FogTileProvider implements TileProvider {
     /** リセット時に呼び出す */
     public synchronized void resetCompletedCityMeshes() {
         this.completedCityMeshes = new HashSet<>();
+        this.allFogCleared = false;
+    }
+
+    /**
+     * 全制覇達成時に呼ぶ。
+     * 琵琶湖など市町ポリゴン外のメッシュも含め、全タイルの霧を完全解放する。
+     */
+    public synchronized void clearAllFog() {
+        this.allFogCleared = true;
     }
 
     // -----------------------------------------------------------------
@@ -94,29 +106,41 @@ public class FogTileProvider implements TileProvider {
 
     @Override
     public Tile getTile(int tileX, int tileY, int zoom) {
-        // 全タイルに霧を適用（滋賀の矩形境界を見えなくするため）
         LatLngBounds tileBounds = tileXYZToBounds(tileX, tileY, zoom);
 
         Bitmap bitmap = Bitmap.createBitmap(TILE_SIZE, TILE_SIZE, Bitmap.Config.ARGB_8888);
         bitmap.setHasAlpha(true);
         Canvas canvas = new Canvas(bitmap);
 
-        // ステップ1: 全面に霧を塗る
-        canvas.drawRect(0, 0, TILE_SIZE, TILE_SIZE, fogPaint);
-
-        // ステップ2: コンプリート済み市町のメッシュを完全クリア（地図の色を見せる）
-        for (Long meshId : completedCityMeshes) {
-            LatLngBounds mb = MeshCalculator.getMeshBounds(meshId);
-            if (intersects(tileBounds, mb)) {
-                drawColorRect(canvas, mb, tileX, tileY, zoom, clearPaint);
+        if (allFogCleared) {
+            // 全制覇モード：霧は描かない（全域が地図色のまま見える）。
+            // ただし自分が歩いた足跡（緑マス）は苦労の証として残す。
+            for (Long meshId : selfWalkedMeshes) {
+                LatLngBounds mb = MeshCalculator.getMeshBounds(meshId);
+                if (intersects(tileBounds, mb)) {
+                    drawColorRect(canvas, mb, tileX, tileY, zoom, footprintPaint);
+                }
             }
-        }
+        } else {
+            // 通常モード：霧 → コンプリート市町クリア → 緑足跡 の順に描画
 
-        // ステップ3: 自分の足跡メッシュを薄い緑で描画（クリアの上から上書き → 常に表示）
-        for (Long meshId : selfWalkedMeshes) {
-            LatLngBounds mb = MeshCalculator.getMeshBounds(meshId);
-            if (intersects(tileBounds, mb)) {
-                drawColorRect(canvas, mb, tileX, tileY, zoom, footprintPaint);
+            // ステップ1: 全面に霧を塗る
+            canvas.drawRect(0, 0, TILE_SIZE, TILE_SIZE, fogPaint);
+
+            // ステップ2: コンプリート済み市町のメッシュを完全クリア（地図の色を見せる）
+            for (Long meshId : completedCityMeshes) {
+                LatLngBounds mb = MeshCalculator.getMeshBounds(meshId);
+                if (intersects(tileBounds, mb)) {
+                    drawColorRect(canvas, mb, tileX, tileY, zoom, clearPaint);
+                }
+            }
+
+            // ステップ3: 自分の足跡メッシュを薄い緑で描画（クリアの上から上書き → 常に表示）
+            for (Long meshId : selfWalkedMeshes) {
+                LatLngBounds mb = MeshCalculator.getMeshBounds(meshId);
+                if (intersects(tileBounds, mb)) {
+                    drawColorRect(canvas, mb, tileX, tileY, zoom, footprintPaint);
+                }
             }
         }
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  プロローグ霧オーバーレイ：おやすみの紫の夜霧
+  ラジアルグラデーションで中心が少し薄く、周辺が濃い霧感を演出
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="120%p"
+        android:startColor="#00330066"
+        android:centerColor="#44220055"
+        android:endColor="#99110044" />
+</shape>

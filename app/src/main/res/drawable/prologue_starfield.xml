@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  星屑レイヤー：完全透明（starfield効果はJavaのアニメーションで表現するため、
+  LayerListのオフセット仕様による意図しない塗りつぶしを防ぐため透明にする）
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#00000000" />
+</shape>

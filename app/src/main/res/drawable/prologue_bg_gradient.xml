@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- プロローグ背景グラデーション：深い宇宙紫から底の暗黒へ -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:type="linear"
+        android:angle="270"
+        android:startColor="#120020"
+        android:centerColor="#1A0035"
+        android:endColor="#0A0010" />
+</shape>

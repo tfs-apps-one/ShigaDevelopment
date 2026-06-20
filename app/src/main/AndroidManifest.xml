@@ -14,9 +14,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/sd_512"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@drawable/sd_512"
         android:supportsRtl="true"
         android:theme="@style/Theme.ShigaDevelopment"
         tools:targetApi="31">
@@ -37,6 +37,20 @@
             </intent-filter>
         </activity>
 
+        <!-- ストーリープロローグ画面（探索モード初回起動時） -->
+        <activity
+            android:name=".StoryPrologueActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="stateHidden" />
+
+        <!-- ストーリーエピローグ（エンディング）画面（全市町制覇時） -->
+        <activity
+            android:name=".StoryEpilogueActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="stateHidden" />
+
         <!-- ヘルプ画面 -->
         <activity
             android:name=".HelpActivity"
@@ -47,7 +61,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
     </application>
 
 </manifest>

@@ -31,6 +31,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TABLE_CITY_COMP    = "city_completion";
 
     private static final String KEY_HERO_ENDING    = "hero_ending";
+    private static final String KEY_PROLOGUE_SHOWN  = "prologue_shown";
 
     private static DatabaseHelper sInstance;
 
@@ -172,6 +173,30 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public void setHeroEndingAchieved() {
         ContentValues cv = new ContentValues();
         cv.put("key",   KEY_HERO_ENDING);
+        cv.put("value", "1");
+        getWritableDatabase().insertWithOnConflict(
+                TABLE_STATE, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    // =====================================================================
+    // プロローグ表示フラグ
+    // =====================================================================
+
+    /** プロローグ（ストーリー導入）が既に表示済みか確認 */
+    public boolean isPrologueShown() {
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT value FROM " + TABLE_STATE + " WHERE key=?",
+                new String[]{KEY_PROLOGUE_SHOWN});
+        boolean ok = false;
+        if (c.moveToFirst()) ok = "1".equals(c.getString(0));
+        c.close();
+        return ok;
+    }
+
+    /** プロローグを表示済みとしてマーク */
+    public void setPrologueShown() {
+        ContentValues cv = new ContentValues();
+        cv.put("key",   KEY_PROLOGUE_SHOWN);
         cv.put("value", "1");
         getWritableDatabase().insertWithOnConflict(
                 TABLE_STATE, null, cv, SQLiteDatabase.CONFLICT_REPLACE);

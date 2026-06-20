@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- エンディング 称号カード背景 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#CC3D1A00" />
+    <stroke
+        android:width="1.5dp"
+        android:color="#BBFFD700" />
+    <corners android:radius="12dp" />
+</shape>
