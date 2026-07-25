@@ -51,36 +51,45 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
-            <!-- 探索率オーバーレイ（地図左上） -->
-            <TextView
-                android:id="@+id/tvExplorationRate"
+            <!-- ステータスオーバーレイ群（地図左上・探索率＋ブーストバナー）
+                 topStatusContainer にステータスバー分の paddingTop を動的付与し、
+                 端末の時刻・電波・バッテリー表示との重なりを防ぐ（MainActivity#onCreate 参照） -->
+            <LinearLayout
+                android:id="@+id/topStatusContainer"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|start"
                 android:layout_margin="10dp"
-                android:padding="6dp"
-                android:text="探索済 --.--%"
-                android:textSize="13sp"
-                android:textColor="@color/white"
-                android:textStyle="bold"
-                android:background="#CC0F3460"
-                android:elevation="4dp" />
+                android:orientation="vertical">
 
-            <!-- ブーストステータスバナー（地図左上・探索率の下） -->
-            <TextView
-                android:id="@+id/tvBoostStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|start"
-                android:layout_marginStart="10dp"
-                android:layout_marginTop="50dp"
-                android:padding="5dp"
-                android:textSize="12sp"
-                android:textColor="@color/boost_banner_text"
-                android:textStyle="bold"
-                android:background="@color/boost_banner_bg"
-                android:elevation="4dp"
-                android:visibility="gone" />
+                <!-- 探索率オーバーレイ -->
+                <TextView
+                    android:id="@+id/tvExplorationRate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:text="探索済 --.--%"
+                    android:textSize="13sp"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    android:background="#CC0F3460"
+                    android:elevation="4dp" />
+
+                <!-- ブーストステータスバナー -->
+                <TextView
+                    android:id="@+id/tvBoostStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:padding="5dp"
+                    android:textSize="12sp"
+                    android:textColor="@color/boost_banner_text"
+                    android:textStyle="bold"
+                    android:background="@color/boost_banner_bg"
+                    android:elevation="4dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
 
             <!-- ① フラッシュオーバーレイ（チェックイン瞬間の金色光） -->
             <View

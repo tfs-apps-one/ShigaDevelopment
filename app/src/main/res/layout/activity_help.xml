@@ -5,10 +5,14 @@
     android:orientation="vertical"
     android:background="@color/bg_normal">
 
-    <!-- ヘッダーバー -->
+    <!-- ヘッダーバー
+         ステータスバー分の paddingTop を動的付与するため id を付与し、
+         高さは固定56dpではなく minHeight とする（HelpActivity#onCreate 参照） -->
     <LinearLayout
+        android:id="@+id/helpHeaderBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="wrap_content"
+        android:minHeight="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="8dp"

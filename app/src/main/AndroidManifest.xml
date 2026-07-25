@@ -19,6 +19,7 @@
         android:roundIcon="@drawable/sd_512"
         android:supportsRtl="true"
         android:theme="@style/Theme.ShigaDevelopment"
+        android:enableOnBackInvokedCallback="true"
         tools:targetApi="31">
 
         <!-- Google Maps APIキー -->

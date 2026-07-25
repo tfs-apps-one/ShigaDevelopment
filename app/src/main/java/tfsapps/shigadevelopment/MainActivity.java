@@ -31,6 +31,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -79,6 +81,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleMap mMap;
     private TileOverlay fogOverlay;
     private FogTileProvider fogProvider;
+    // ステータスバーの高さ（px）。地図右上の現在地ボタンをずらすために使用
+    private int statusBarInsetTopPx = 0;
 
     // 現在地 125m 緑円 + 300m チェックインリング
     private Circle myRadiusCircle;
@@ -230,6 +234,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         confettiView          = findViewById(R.id.confettiView);
         tvExplorationRate      = findViewById(R.id.tvExplorationRate);
         tvBoostStatus          = findViewById(R.id.tvBoostStatus);
+
+        // ステータスバー（時刻・電波・バッテリー表示）と探索率オーバーレイの重なり対策。
+        // Android 15(targetSdk 35)以降は edge-to-edge がデフォルトになり、
+        // 何もしないとコンテンツがステータスバーの下に潜り込んで重なって見える。
+        // ステータスバー分の高さだけ paddingTop を動的に追加してずらす。
+        View topStatusContainer = findViewById(R.id.topStatusContainer);
+        ViewCompat.setOnApplyWindowInsetsListener(topStatusContainer, (v, insets) -> {
+            int statusBarTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            v.setPadding(v.getPaddingLeft(), statusBarTop, v.getPaddingRight(), v.getPaddingBottom());
+            // 地図右上の「現在地」ボタン（Googleマップ標準UI）も同じ分だけ下げる
+            statusBarInsetTopPx = statusBarTop;
+            applyMapTopPaddingForStatusBar();
+            return insets;
+        });
         layoutSpotCelebration  = findViewById(R.id.layoutSpotCelebration);
         celebFlashView         = findViewById(R.id.celebFlashView);
         tvCelebSpotName        = findViewById(R.id.tvCelebSpotName);
@@ -396,6 +414,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.getUiSettings().setTiltGesturesEnabled(false);
         mMap.getUiSettings().setZoomControlsEnabled(false);
 
+        // 地図右上の「現在地」ボタンがステータスバーと重ならないよう下にずらす
+        applyMapTopPaddingForStatusBar();
+
         LatLng shigaCenter = new LatLng(35.18, 136.07);
         mMap.moveCamera(CameraUpdateFactory.newCameraPosition(
                 new CameraPosition.Builder().target(shigaCenter).zoom(9.5f).build()));
@@ -415,6 +436,19 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // >>>test_make>>>
         setupDebugInteractions(); // デバッグモード: タップ達成・ホールドリセット
         // <<<test_make<<<
+    }
+
+    /**
+     * 地図上部にステータスバー分のパディングを設定する。
+     * これにより、Googleマップ標準の「現在地」ボタン（右上）や
+     * コンパス・ロゴなどが端末のステータスバー（時刻・電波・バッテリー表示）と
+     * 重ならない位置に自動的に配置される。
+     * onMapReady と ウィンドウインセット取得の両方から呼ばれる可能性があるため、
+     * mMap が未準備の場合は何もしない。
+     */
+    private void applyMapTopPaddingForStatusBar() {
+        if (mMap == null) return;
+        mMap.setPadding(0, statusBarInsetTopPx, 0, 0);
     }
 
     // =========================================================================

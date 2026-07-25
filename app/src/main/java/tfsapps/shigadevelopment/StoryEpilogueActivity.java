@@ -15,6 +15,7 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 /**
@@ -52,6 +53,17 @@ public class StoryEpilogueActivity extends AppCompatActivity {
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+
+        // バックキー・戻るジェスチャーで誤って抜けないよう、ボタン経由のみで戻れるようにする。
+        // targetSdk 36 (Android 16) からプリディクティブバックが既定で有効になり、
+        // 非推奨の onBackPressed() オーバーライドは呼ばれない場合があるため、
+        // OnBackPressedCallback で明示的にブロックする。
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                returnToMainActivity();
+            }
+        });
 
         // ビュー参照
         View         glowOverlay       = findViewById(R.id.epilogueGlowOverlay);
@@ -179,12 +191,6 @@ public class StoryEpilogueActivity extends AppCompatActivity {
         startActivity(intent);
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         finish();
-    }
-
-    @Override
-    public void onBackPressed() {
-        // バックキーで誤って抜けないよう、ボタン経由のみで戻れる
-        returnToMainActivity();
     }
 
     @Override
